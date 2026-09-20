@@ -99,6 +99,10 @@ class Settings:
     ai_base_url: str = ""
     ai_model: str = ""
     control_channel_id: int | None = None
+    #: Uma linha "Online." no canal de controle ao conectar. E o unico sinal
+    #: observavel de que o bot hospedado esta vivo: ele ignora mensagens de
+    #: bots por design, entao teste nenhum consegue dispara-lo de fora.
+    startup_notice: bool = True
     audit_path: str = "logs/audit.jsonl"
     limits: Limits = field(default_factory=Limits)
 
@@ -137,6 +141,13 @@ class Settings:
         return replace(self, limits=replace(self.limits, **changes))
 
 
+def _opt_bool(name: str, padrao: bool = True) -> bool:
+    bruto = os.getenv(name)
+    if bruto is None or not bruto.strip():
+        return padrao
+    return bruto.strip().lower() in {"1", "true", "sim", "yes", "on"}
+
+
 def _opt_int(name: str) -> int | None:
     raw = os.getenv(name, "").strip()
     if not raw:
@@ -168,6 +179,7 @@ def load_settings(
         ai_base_url=_normalize_base_url(os.getenv("AI_BASE_URL", "")),
         ai_model=os.getenv("AI_MODEL", "").strip(),
         control_channel_id=_opt_int("ATLAS_CONTROL_CHANNEL_ID"),
+        startup_notice=_opt_bool("ATLAS_STARTUP_NOTICE", True),
         audit_path=os.getenv("ATLAS_AUDIT_PATH", "logs/audit.jsonl").strip() or "logs/audit.jsonl",
     )
 

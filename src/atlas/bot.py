@@ -146,6 +146,44 @@ class AtlasBot(discord.Client):
     async def on_ready(self) -> None:
         assert self.user is not None
         log.info("conectado como %s em %d servidor(es)", self.user, len(self.guilds))
+        await self._aviso_online()
+
+    async def _aviso_online(self) -> None:
+        """Uma linha no canal de controle provando que o processo esta vivo.
+
+        Sem isto nao ha como verificar de fora se o bot hospedado caiu: ele
+        ignora mensagens de bots por design (anti-loop), entao nenhum teste
+        automatizado consegue dispara-lo. Este aviso e o unico sinal
+        observavel de que ele conectou no gateway.
+
+        `on_ready` dispara de novo em cada reconexao, entao o contador segura
+        o aviso em um por processo - senao viraria spam a cada queda de rede.
+        """
+        if self._ready_embeds or not self.settings.startup_notice:
+            return
+
+        canal = None
+        for guild in self.guilds:
+            canal = resolve_control_channel(
+                guild, configured_id=self.settings.control_channel_id
+            )
+            if canal is not None:
+                break
+        if canal is None:
+            log.info("aviso de online pulado: nenhum canal de controle resolvido")
+            return
+
+        spec = self.builder.success("", "Online.")
+        try:
+            await canal.send(view=spec.to_layout_view())
+            # A trava vem DEPOIS do envio. Sem canal de controle o bot fica
+            # livre para mandar na proxima reconexao - se o canal for criado
+            # depois, o aviso ainda aparece.
+            self._ready_embeds = 1
+            log.info("aviso de online enviado em #%s", canal.name)
+        except discord.HTTPException as exc:
+            # Nao pode derrubar o bot: o aviso e diagnostico, nao funcionalidade.
+            log.warning("nao deu para enviar o aviso de online: %s", exc)
 
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:

@@ -1402,3 +1402,85 @@ def test_prazo_generoso_nao_atrapalha_pedido_normal(harness):
                 limits=Limits(deadline_seconds=90.0))
     out = h.ask("oi")
     assert any("pronto" in e.description for e in out.embeds)
+
+
+# ---------------------------------------------------- aviso "Online." ao subir
+def _bot_para_aviso(monkeypatch, *, notice=True, canal_id=10, nome="atlas-config",
+                    configured=None):
+    """AtlasBot com guild/canal falsos, sem tocar em rede.
+
+    `canal_id` e o id do canal falso; `configured` e o ATLAS_CONTROL_CHANNEL_ID.
+    Tem que ser possivel passar valores diferentes - na primeira versao os dois
+    eram o mesmo numero e o teste "sem canal de controle" achava o canal.
+    """
+    from atlas.audit import AuditLog
+    from atlas.bot import AtlasBot
+    from atlas.config import load_settings
+
+    canal = FakeTextChannel(canal_id, nome)
+    enviados = []
+
+    async def send(*, view=None, embed=None, **kw):
+        enviados.append({"view": view, "embed": embed})
+
+    canal.send = send
+
+    guild = FakeGuild([canal])
+    import dataclasses
+
+    settings = dataclasses.replace(
+        load_settings(require_secrets=False),
+        control_channel_id=canal_id if configured is None else configured,
+        startup_notice=notice,
+    )
+
+    bot = AtlasBot(settings, AuditLog(path=None))
+    bot._guilds = [guild]
+    monkeypatch.setattr(type(bot), "guilds", property(lambda self: self._guilds))
+    return bot, canal, enviados
+
+
+def test_aviso_online_manda_uma_mensagem_no_canal_de_controle(monkeypatch):
+    import asyncio
+
+    bot, canal, enviados = _bot_para_aviso(monkeypatch)
+    asyncio.run(bot._aviso_online())
+
+    assert len(enviados) == 1, "o aviso e uma mensagem so"
+    assert enviados[0]["view"] is not None, "tem que ser Components V2, nao embed antigo"
+    assert enviados[0]["embed"] is None
+
+
+def test_aviso_online_nao_repete_em_cada_reconexao(monkeypatch):
+    """on_ready dispara de novo a cada reconexao: sem trava vira spam."""
+    import asyncio
+
+    bot, canal, enviados = _bot_para_aviso(monkeypatch)
+    asyncio.run(bot._aviso_online())
+    asyncio.run(bot._aviso_online())
+    asyncio.run(bot._aviso_online())
+
+    assert len(enviados) == 1, f"mandou {len(enviados)} avisos, devia ser 1"
+
+
+def test_aviso_online_pode_ser_desligado(monkeypatch):
+    import asyncio
+
+    bot, _canal, enviados = _bot_para_aviso(monkeypatch, notice=False)
+    asyncio.run(bot._aviso_online())
+
+    assert enviados == [], "com ATLAS_STARTUP_NOTICE=0 nao manda nada"
+
+
+def test_aviso_online_sem_canal_de_controle_nao_quebra(monkeypatch):
+    """Diagnostico nao pode derrubar o bot."""
+    import asyncio
+
+    # configured aponta para um id que nao existe E o canal tem nome diferente
+    # de atlas-config: nem o id nem o fallback por nome acham nada.
+    bot, _canal, enviados = _bot_para_aviso(monkeypatch, canal_id=10, nome="geral",
+                                            configured=999)
+    asyncio.run(bot._aviso_online())  # nao deve lancar
+
+    assert enviados == []
+    assert bot._ready_embeds == 0, "pode tentar de novo na proxima reconexao"
