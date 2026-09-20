@@ -18,7 +18,7 @@ from .config import Limits
 from .design_check import auditar_servidor
 from .snapshot_store import SnapshotStore
 from .task import TaskState, estado_da_tarefa
-from .embeds import EmbedBuilder, EmbedSpec
+from .embeds import EmbedBuilder, EmbedKind, EmbedSpec
 from .errors import AIError, AtlasError, ConfirmationRequired
 from .executor import Executor
 from .formatting import (
@@ -36,6 +36,40 @@ from .tools.base import ToolContext, ToolRegistry
 log = logging.getLogger(__name__)
 
 MAX_EMBEDS_PER_TURN = 3
+
+#: Prioridade de sobrevivencia quando ha mais embeds do que cabem na resposta.
+#: O corte por POSICAO (embeds[:3]) era errado de dois jeitos, os dois reais:
+#:  - a resposta do modelo vinha por ultimo e era a primeira a sumir, entao o
+#:    usuario ficava sem o "Pronto." justamente quando houve erro para explicar;
+#:  - o embed de erro tambem e acrescentado no fim, e sumia junto.
+#: Aqui o que importa mais sobrevive, e a ORDEM DE EXIBICAO e preservada.
+_PRIORIDADE_EMBED = {
+    EmbedKind.ERROR: 0,
+    EmbedKind.WARNING: 1,
+    EmbedKind.RESULT: 2,
+    EmbedKind.SUCCESS: 3,
+    EmbedKind.INFO: 4,
+}
+
+
+def _cortar_por_prioridade(embeds: list[EmbedSpec], limite: int) -> list[EmbedSpec]:
+    """Mantem os `limite` mais importantes, na ordem original de exibicao."""
+    if len(embeds) <= limite:
+        return embeds
+    # a resposta do modelo (info com texto curto) nao tem como ser distinguida de
+    # um info qualquer, entao ela entra marcada pelo chamador com _protegido
+    protegidos = [i for i, e in enumerate(embeds) if getattr(e, 'protegido', False)]
+    resto = [i for i in range(len(embeds)) if i not in protegidos]
+    resto.sort(key=lambda i: (_PRIORIDADE_EMBED.get(embeds[i].kind, 9), i))
+    manter = set(protegidos[:limite])
+    for i in resto:
+        if len(manter) >= limite:
+            break
+        manter.add(i)
+    return [e for i, e in enumerate(embeds) if i in manter]
+
+
+
 
 
 @dataclass
@@ -205,7 +239,7 @@ class Agent:
             result="ok",
         )
         session.add_function_results([_result_payload(r) for r in results])
-        return AgentOutcome(embeds=result_embeds(self.builder, results)[:MAX_EMBEDS_PER_TURN], results=results)
+        return AgentOutcome(embeds=_cortar_por_prioridade(result_embeds(self.builder, results), MAX_EMBEDS_PER_TURN), results=results)
 
     # --------------------------------------------------------------------- QA
     def _qa_pos_execucao(self, results: list[ActionResult]) -> list[EmbedSpec]:
@@ -269,7 +303,7 @@ class Agent:
                         "feito; me diz se quer que eu continue.",
                     )
                 )
-                return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+                return AgentOutcome(embeds=_cortar_por_prioridade(embeds, MAX_EMBEDS_PER_TURN), results=all_results)
 
             response = ensure_call_ids(
                 self.model.generate(
@@ -286,10 +320,12 @@ class Agent:
                     session.add_assistant_text(response.text)
                 embeds = result_embeds(self.builder, all_results) if all_results else []
                 if response.text:
-                    embeds.append(self.builder.info("Atlas", response.text))
+                    resposta = self.builder.info("Atlas", response.text)
+                    resposta.protegido = True
+                    embeds.append(resposta)
                 if not embeds:
                     embeds = [self.builder.info("Atlas", "Nao encontrei nada para fazer nesse pedido.")]
-                return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+                return AgentOutcome(embeds=_cortar_por_prioridade(embeds, MAX_EMBEDS_PER_TURN), results=all_results)
 
             calls = [{"id": c.id, "name": c.name, "args": c.args} for c in response.calls]
             session.add_model_calls(calls)
@@ -337,7 +373,7 @@ class Agent:
                 "O que ja estava feito ficou feito; o resto precisa de outro pedido.",
             )
         )
-        return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+        return AgentOutcome(embeds=_cortar_por_prioridade(embeds, MAX_EMBEDS_PER_TURN), results=all_results)
 
 
 # --------------------------------------------------------------------- utils

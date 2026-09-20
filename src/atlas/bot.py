@@ -15,6 +15,7 @@ import discord
 
 from .agent import Agent, AgentOutcome, build_agent
 from .concurrency import GuildLocks
+from .progresso import Cancelador
 from .ai import build_ai_client
 from .audit import AuditLog
 from .config import Settings
@@ -24,7 +25,7 @@ from .policy import ActionBudget, Policy
 from .prompts import HELP_TEXT
 from .queue import ActionQueue
 from .ratelimit import GuildRateLimiter
-from .session import SessionStore
+from .session import NEGATIVE, SessionStore
 from .tools import build_registry
 from .tools.base import ToolContext
 
@@ -143,6 +144,7 @@ class AtlasBot(discord.Client):
         )
         self._ready_embeds = 0
         self.guild_locks = GuildLocks()
+        self.cancelador = Cancelador()
 
     # ---------------------------------------------------------------- events
     async def on_ready(self) -> None:
@@ -291,9 +293,33 @@ class AtlasBot(discord.Client):
         # pedidos concorrentes leem snapshots diferentes e escrevem um em cima
         # do outro (spec 64/65). A espera e curta: se nao deu, avisa na hora em
         # vez de deixar a pessoa olhando o bot "pensar" (spec 114).
+        # Cancelamento (spec 90/114/158). Tem que ser lido ANTES da trava:
+        # depois dela a mensagem seria recusada como guild_busy e o "para" nunca
+        # chegaria a cancelar nada. So cancela se houver mesmo uma tarefa em
+        # curso - senao "para" viraria resposta para qualquer coisa.
+        if (
+            NEGATIVE.match(text.strip())
+            and self.guild_locks.ocupada(guild.id)
+        ):
+            self.cancelador.pedir(guild.id)
+            self.audit.record(
+                action="task.cancel_requested",
+                guild_id=guild.id,
+                user_id=message.author.id if message is not None else None,
+                result="ok",
+            )
+            return AgentOutcome(
+                embeds=[self.builder.info(
+                    "",
+                    "Cancelando. O que ja estava feito fica feito; o resto nao vai rodar.",
+                )],
+                blocked="cancelled",
+            )
+
         with self.guild_locks.tentativa(
             guild.id, self.settings.limits.guild_lock_timeout_seconds
         ) as pegou:
+            self.cancelador.limpar(guild.id)
             if not pegou:
                 log.warning(
                     "guild %s ja esta sendo alterado; recusando para nao misturar planos",
@@ -346,6 +372,7 @@ class AtlasBot(discord.Client):
         queue = ActionQueue(
             guild_id=guild.id, limiter=self.limiter, audit=self.audit,
             dispatch=lambda a: None, limits=self.settings.limits,
+            cancelador=self.cancelador,
         )
         agent = build_agent(
             ctx=ctx,

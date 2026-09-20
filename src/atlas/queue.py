@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from .audit import AuditLog
 from .config import Limits
+from .progresso import Cancelador
 from .autofix import corrigir, diferenca
 from .errors import AtlasError
 from .policy import DESTRUCTIVE_TOOLS
@@ -70,6 +71,7 @@ class ActionQueue:
         audit: AuditLog,
         dispatch: ToolHandler,
         limits: Limits | None = None,
+        cancelador: Cancelador | None = None,
     ) -> None:
         self.guild_id = guild_id
         self.limiter = limiter
@@ -77,6 +79,7 @@ class ActionQueue:
         self.dispatch = dispatch
         # Limites de nome/topico para a auto-correcao cortar no tamanho certo.
         self.limits = limits or Limits()
+        self.cancelador = cancelador
         self._pending: list[PlannedAction] = []
         self._executed: list[ActionResult] = []
 
@@ -165,6 +168,21 @@ class ActionQueue:
     def run_all(self) -> list[ActionResult]:
         results: list[ActionResult] = []
         while self._pending:
+            # Cancelamento cooperativo (spec 90/158): perguntar ENTRE acoes, e
+            # nunca no meio de uma chamada a API. Interromper no meio e o que
+            # deixa estado corrompido sem registro.
+            if self.cancelador is not None and self.cancelador.cancelado(self.guild_id):
+                restantes = len(self._pending)
+                self._pending.clear()
+                self.audit.record(
+                    action="task.cancelled",
+                    guild_id=self.guild_id,
+                    params={"executadas": len(results), "descartadas": restantes},
+                    result="cancelled",
+                )
+                log.info("tarefa cancelada no guild %s: %s feitas, %s descartadas",
+                         self.guild_id, len(results), restantes)
+                break
             action = self._pending.pop(0)
             results.append(self.run_one(action))
         return results

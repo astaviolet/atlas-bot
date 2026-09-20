@@ -57,6 +57,10 @@ class EmbedSpec:
     fields: list[EmbedField] = field(default_factory=list)
     footer: str = ""
     status: str | None = None
+    #: A resposta do modelo nao pode ser cortada quando ha mais embeds do que
+    #: cabem na mensagem. Marcada aqui, em vez de atributo escondido, porque
+    #: corte por prioridade e regra do produto e nao detalhe de um chamador.
+    protegido: bool = False
 
     @property
     def styled_title(self) -> str:

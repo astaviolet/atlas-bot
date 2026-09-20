@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from .progresso import Progresso
 from .task import resumo_da_tarefa
 
 from .embeds import EmbedBuilder, EmbedField, EmbedKind, EmbedSpec
@@ -46,10 +47,24 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
             )
         )
 
+    # Progresso por tipo (spec 156/157). REGRA: isto nunca pode criar embed
+    # proprio quando ha falha. MAX_EMBEDS_PER_TURN e 3 e o embed de erro e o
+    # ultimo a ser acrescentado - um embed de progresso a mais expulsava justo a
+    # explicacao da falha (pegou em test_10b). Por isso o progresso vai DENTRO
+    # do resumo, e so ganha embed proprio quando tudo deu certo - ai ele e o
+    # ultimo da lista e e ele que some se faltar lugar, nao o erro.
+    linhas_progresso = Progresso([r.action for r in results]).linhas(results)
+    progresso_utile = (
+        len(linhas_progresso) >= 2 or any("incompleto" in l for l in linhas_progresso)
+    )
+
     if failed and ok:
         # Sucesso parcial tem que dizer a conta (spec 22): "16 de 18" nao e
-        # "tudo pronto". Linha propria, curta.
-        embeds.append(builder.warning("", resumo_da_tarefa(results)))
+        # "tudo pronto".
+        corpo = resumo_da_tarefa(results)
+        if progresso_utile:
+            corpo += "\n" + "\n".join(linhas_progresso)
+        embeds.append(builder.warning("", corpo))
 
     if failed:
         linhas = []
@@ -58,6 +73,9 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
         if len(failed) > 5:
             linhas.append(f"e mais {len(failed) - 5}")
         embeds.append(builder.error("", "\n".join(linhas)))
+
+    if not failed and progresso_utile:
+        embeds.append(builder.build(EmbedKind.INFO, "", "\n".join(linhas_progresso)))
 
     return embeds
 
