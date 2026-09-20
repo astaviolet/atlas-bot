@@ -88,6 +88,18 @@ class AIError(AtlasError):
     """A camada de IA falhou (provedor, gateway, timeout, cota ou modelo)."""
 
     user_message = "A camada de IA nao respondeu."
+    #: o router usa isto para decidir entre insistir em outra rota ou desistir.
+    #: True = falha transitoria (fila, sobrecarga, timeout).
+    #: False = falha permanente (chave recusada, modelo inexistente): insistir
+    #:          nao resolve, entao a rota sai do pool.
+    retryable: bool = True
+
+    def __init__(
+        self, message: str = "", *, user_message: str | None = None, retryable: bool | None = None
+    ) -> None:
+        super().__init__(message, user_message=user_message)
+        if retryable is not None:
+            self.retryable = retryable
 
 
 class PromptInjectionBlocked(PolicyViolation):

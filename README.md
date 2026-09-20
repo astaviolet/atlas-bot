@@ -47,7 +47,7 @@ cp .env.example .env      # preencha
 Outros modos:
 
 ```bash
-.venv/bin/python -m pytest -q                   # 311 testes
+.venv/bin/python -m pytest -q                   # 347 testes
 .venv/bin/python main.py --demo                 # agente contra servidor simulado
 ```
 
@@ -191,16 +191,23 @@ em Fly.io, Railway ou qualquer VPS: `pip install -r requirements.txt` e
 atlas-bot/
 ├── main.py                       entrada: --check | --demo | rodar
 ├── scripts/run_bot.sh            supervisor: restart com backoff + teto de 6h
+├── scripts/probe_providers.py    sondagem de candidatos a entrar no pool
 ├── .github/workflows/bot.yml     roda o bot no GitHub Actions
 ├── pyproject.toml  requirements.txt  .env.example  .gitignore
 ├── src/atlas/
 │   ├── config.py                 Settings, Limits, leitura de .env
 │   ├── ai/                       CAMADA DE IA (unica saida para modelo)
 │   │   ├── base.py               ModelClient (Protocol), FunctionCall, ModelTurn
-│   │   ├── openai_client.py      cliente OpenAI-compativel + traducao de erro
+│   │   ├── providers.py          catalogo de gateways/rotas verificados
+│   │   ├── router.py             capability routing, failover, carga, limites
+│   │   ├── health.py             circuit breaker, cooldown, saude por rota
+│   │   ├── discovery.py          sonda e reavalia o pool continuamente
+│   │   ├── stats.py              metricas e painel
+│   │   ├── cache.py              cache isolado por guild, invalida em mutacao
+│   │   ├── openai_client.py      transporte HTTP + traducao de erro
 │   │   ├── schema.py             declaracoes -> envelope OpenAI de function calling
 │   │   ├── fakes.py              doubles de teste (scripted / failing)
-│   │   └── __init__.py           build_ai_client()
+│   │   └── __init__.py           build_ai_client(), build_catalog()
 │   ├── agent.py                  laco modelo <-> ferramentas
 │   ├── executor.py               validacao + dispatch + verificacao pos-acao
 │   ├── policy.py                 SEGURANCA: whitelist, proibicoes, isolamento, cotas
@@ -225,7 +232,7 @@ atlas-bot/
 │   ├── errors.py                 hierarquia de excecoes (AIError, PolicyViolation...)
 │   ├── demo.py                   modo demo sem credencial
 │   └── testing/fake_gateway.py   Discord em memoria com as mesmas restricoes
-└── tests/                        8 arquivos de teste + conftest, 311 testes
+└── tests/                        9 arquivos de teste + conftest, 347 testes
 ```
 
 ---
@@ -233,32 +240,87 @@ atlas-bot/
 ## Camada de IA
 
 `atlas.ai` é o único pacote que sabe que existe um modelo do outro lado. Todo o
-resto importa o Protocol `ModelClient`:
+resto importa o Protocol `ModelClient` e pede um turno; quem decide gateway,
+modelo, retry e fallback é o `Router`.
 
-```python
-class ModelClient(Protocol):
-    model_name: str
-    def generate(*, system, history, tools) -> ModelTurn: ...
+```
+Discord
+  ↓
+Agent
+  ↓
+Router              escolhe rota, faz failover, respeita limite, mede saude
+  ↓
+Gateway OpenAI-compativel   (anonimo, sem chave)
+  ↓
+LLM
 ```
 
-Responsabilidades da camada:
+### O pool
 
-- **enviar mensagens** com system prompt e histórico;
-- **function calling** — declaração das 21 ferramentas e parsing das chamadas;
-- **histórico/conversa** com correlação de `tool_call_id` entre pedido e resposta;
-- **erros** traduzidos por tipo: autenticação, rate limit, timeout, conexão,
-  modelo inexistente, status HTTP;
-- **timeout e retry** configuráveis em `Limits` (`ai_timeout_seconds`,
-  `ai_max_retries`);
-- **logs seguros** — nenhum prompt ou chave vai para o log;
-- **troca de modelo sem tocar no bot** — `AI_MODEL` é lido em runtime.
+Nenhuma dependência de um provedor só. O catálogo em `providers.py` tem só
+rotas **verificadas por sondagem real**: cada uma respondeu a uma chamada de
+tool calling sem enviar chave nenhuma. Rota que não passou não está lá.
 
-O histórico interno é neutro (`{"role", "parts"}`) e convertido na fronteira.
-Assim o agente e os testes não dependem do formato de nenhum provedor.
+| Gateway | Rotas | Acesso | Limite declarado |
+|---|---|---|---|
+| Kilo | 9 | sem chave | ~30 req/min medido |
+| LLM7 | 3 | sem chave | ~60 req/hora |
+| OVHcloud | 1 | **MANUAL_REQUIRED** | passou a devolver 403; só entra com chave |
 
-Chamadas de ferramenta recebem `id`. Quando o provedor não devolve id,
-`ensure_call_ids` sintetiza um estável na fronteira — sem isso a conversa quebra
-no segundo turno.
+`python main.py --health` re-testa tudo e imprime o estado real.
+
+### Como o router escolhe
+
+Para cada pedido, nesta ordem:
+
+1. **capability routing** — só rotas que sabem fazer o que o pedido exige. Tool
+   calling é eliminatório: uma tarefa de Discord nunca vai para modelo sem tool
+   calling para depois o bot dizer que "a IA não consegue".
+2. **saúde** — circuit breaker. Rota em cooldown ou morta não entra.
+3. **limite do provedor** — balde de tokens por gateway no limite legítimo dele.
+   Quando estoura, a rota espera; o router usa outra.
+4. **carga** — round robin ponderado: não empilha tudo na primeira rota.
+5. **latência** — desempate pelo tempo de resposta medido.
+6. **falhou?** — registra, marca cooldown se for transitório, tenta a próxima.
+
+Erro permanente (401, modelo inexistente, sem tool calling) tira a rota do pool
+em vez de gastar tentativa. Erro transitório (429, 503, timeout) só põe em
+cooldown, e ela volta sozinha em half-open.
+
+**Nada disso tenta burlar rate limit.** Sem conta falsa, sem rotação de
+identidade, sem contorno de bloqueio. Quando o provedor diz que chegou no
+limite, a resposta correta é esperar — e é o que o código faz.
+
+### Reavaliação contínua
+
+Provedor gratuito muda de modelo e de limite sem avisar, então o catálogo é uma
+foto, não uma verdade. `main.py --health` sonda cada rota com uma chamada mínima
+e atualiza o registro de saúde:
+
+- rota nova → probe → classifica → entra se passar;
+- rota quebrada → probe falha → cooldown → reteste → volta se passar.
+
+### Isolamento
+
+`guild_id` chega ao `ModelClient` por um motivo só: **isolar cache e métrica por
+servidor**. Ele nunca autoriza agir em outro servidor — o guild de execução vem
+do contexto da interação, como sempre. O cache inclui `guild_id` na chave e é
+invalidado inteiro quando qualquer mutação acontece naquele servidor.
+
+### Economia de token
+
+- deduplicação: pedido idêntico do mesmo servidor dentro da janela curta não
+  chama o modelo de novo;
+- invalidação por mutação: mudou o servidor, resposta guardada não serve mais;
+- modelos menores primeiro: o peso no catálogo põe os leves na frente e deixa os
+  grandes (`nemotron-3-ultra-550b`) como opção menos frequente.
+
+### Painel
+
+`python main.py --health` mostra gateways, rotas, saudáveis, em cooldown,
+mortas, requests, tokens, latência p50/p95, taxa de erro, fallbacks, último
+erro e cooldown restante de cada rota. Só números e nomes de rota — nunca
+conteúdo de conversa nem credencial.
 
 ### Tool calling é obrigatório
 
@@ -317,7 +379,7 @@ aviso, ajuda. Textos são cortados nos limites da API.
 ## Testes
 
 ```
-311 passed
+347 passed
 ```
 
 | Arquivo | Cobre |
@@ -329,7 +391,8 @@ aviso, ajuda. Textos são cortados nos limites da API.
 | `test_embeds.py` | caso 18 (sempre template, nunca texto puro) |
 | `test_audit.py` | auditoria e redação de segredo |
 | `test_policy.py` | `Policy` e `ToolRegistry` isoladamente |
-| `test_wiring.py` | canal de controle, gateway Discord, **camada de IA** |
+| `test_wiring.py` | canal de controle, gateway Discord, transporte OpenAI |
+| `test_router.py` | pool: capability routing, failover, circuit breaker, carga, cache, discovery, 12 usuários simultâneos |
 
 ### Teste de mutação
 

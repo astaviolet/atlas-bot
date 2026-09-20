@@ -13,7 +13,7 @@ from typing import Any
 import discord
 
 from .errors import GatewayError, NotFound, ToolError
-from .models import Channel, ChannelType, GuildSnapshot, Overwrite, Perm, Role
+from .models import Channel, ChannelType, GuildSnapshot, Overwrite, Role
 
 _TIMEOUT = 30.0
 

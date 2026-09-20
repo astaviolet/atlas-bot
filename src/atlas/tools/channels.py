@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import Any
 
 from ..errors import NotFound, ToolError
-from ..models import CHANNEL_TYPE_ALIAS, CHANNEL_TYPE_LABEL, ChannelType, Overwrite, Perm
+from ..models import CHANNEL_TYPE_ALIAS, ChannelType, Overwrite, Perm
 from ..permissions import (
-    parse_permissions,
     reject_never_grantable,
     require_bot_permission,
     split_unknown_permissions,

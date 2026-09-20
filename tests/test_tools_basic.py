@@ -82,8 +82,8 @@ def test_04_alterar_cargo(harness):
     # resolve o id do cargo recem-criado entre um turno e outro
     original = h.model.generate
 
-    def generate(*, system, history, tools):
-        result = original(system=system, history=history, tools=tools)
+    def generate(**kwargs):
+        result = original(**kwargs)
         for call in result.calls:
             if call.args.get("role_id") == "__ROLE__":
                 call.args["role_id"] = str(h.find_role_id("Suporte"))
@@ -108,8 +108,8 @@ def test_05_alterar_permissoes_de_cargo(harness):
     h = harness(script)
     original = h.model.generate
 
-    def generate(*, system, history, tools):
-        result = original(system=system, history=history, tools=tools)
+    def generate(**kwargs):
+        result = original(**kwargs)
         for call in result.calls:
             if call.args.get("role_id") == "__ROLE__":
                 call.args["role_id"] = str(h.find_role_id("Curador"))
@@ -139,8 +139,8 @@ def test_05b_alterar_permissoes_de_canal(harness):
     h = harness(script)
     original = h.model.generate
 
-    def generate(*, system, history, tools):
-        result = original(system=system, history=history, tools=tools)
+    def generate(**kwargs):
+        result = original(**kwargs)
         for call in result.calls:
             if call.args.get("role_id") == "__ROLE__":
                 call.args["role_id"] = str(h.find_role_id("Visitante"))

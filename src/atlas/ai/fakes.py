@@ -28,6 +28,8 @@ class ScriptedModelClient:
         system: str,
         history: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        model: str | None = None,
+        guild_id: int | None = None,
     ) -> ModelTurn:
         self.system_prompts.append(system)
         self.prompts.append([dict(m) for m in history])
@@ -56,8 +58,13 @@ class FailingModelClient:
         system: str,
         history: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        model: str | None = None,
+        guild_id: int | None = None,
     ) -> ModelTurn:
         raise AIError(self.message, user_message=self.user_message)
+
+    def invalidar_guild(self, guild_id: int) -> None:
+        """No-op: fake nao tem cache. Mantem a mesma superficie do Router."""
 
 
 def call(name: str, args: dict[str, Any] | None = None, *, id: str | None = None) -> FunctionCall:

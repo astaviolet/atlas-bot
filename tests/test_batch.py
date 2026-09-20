@@ -18,8 +18,8 @@ def test_10_estrutura_completa_em_lote(harness):
     # o id da categoria SUPORTE so existe depois do primeiro turno
     original = h.model.generate
 
-    def generate(*, system, history, tools):
-        result = original(system=system, history=history, tools=tools)
+    def generate(**kwargs):
+        result = original(**kwargs)
         for call in result.calls:
             if call.args.get("category_id") == "__CAT__":
                 call.args["category_id"] = str(h.find_category_id("SUPORTE"))

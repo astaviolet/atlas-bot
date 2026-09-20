@@ -94,19 +94,37 @@ class Limits:
 class Settings:
     discord_token: str
     ai_api_key: str = ""
-    ai_base_url: str = DEFAULT_AI_BASE_URL
-    ai_model: str = DEFAULT_AI_MODEL
+    ai_base_url: str = ""
+    ai_model: str = ""
     control_channel_id: int | None = None
     audit_path: str = "logs/audit.jsonl"
     limits: Limits = field(default_factory=Limits)
+
+    @property
+    def effective_base_url(self) -> str:
+        """O que vai ser usado de fato: o que o usuario definiu, ou o padrao anonimo."""
+        return self.ai_base_url or DEFAULT_AI_BASE_URL
+
+    @property
+    def effective_model(self) -> str:
+        return self.ai_model or DEFAULT_AI_MODEL
+
+    @property
+    def usuario_configurou_ia(self) -> bool:
+        """True so quando o usuario preencheu AI_BASE_URL/AI_MODEL no .env.
+
+        Sem isso o pool anonimo seria tratado como gateway "configurado", e as
+        mesmas rotas entrariam duas vezes no catalogo.
+        """
+        return bool(self.ai_base_url and self.ai_model)
 
     def describe(self) -> dict[str, Any]:
         """Versao segura para log. Nunca contem segredo."""
         return {
             "discord_token": "***" if self.discord_token else "(vazio)",
             "ai_api_key": "***" if self.ai_api_key else "(nao necessaria - endpoint anonimo)",
-            "ai_base_url": self.ai_base_url or "(vazio)",
-            "ai_model": self.ai_model or "(vazio)",
+            "ai_base_url": self.effective_base_url + ("" if self.ai_base_url else "  (padrao anonimo)"),
+            "ai_model": self.effective_model + ("" if self.ai_model else "  (padrao anonimo)"),
             "control_channel_id": self.control_channel_id,
             "audit_path": self.audit_path,
         }
@@ -154,8 +172,8 @@ def load_settings(
     settings = Settings(
         discord_token=os.getenv("DISCORD_TOKEN", "").strip(),
         ai_api_key=os.getenv("AI_API_KEY", "").strip(),
-        ai_base_url=_normalize_base_url(os.getenv("AI_BASE_URL", "")) or DEFAULT_AI_BASE_URL,
-        ai_model=os.getenv("AI_MODEL", "").strip() or DEFAULT_AI_MODEL,
+        ai_base_url=_normalize_base_url(os.getenv("AI_BASE_URL", "")),
+        ai_model=os.getenv("AI_MODEL", "").strip(),
         control_channel_id=_opt_int("ATLAS_CONTROL_CHANNEL_ID"),
         audit_path=os.getenv("ATLAS_AUDIT_PATH", "logs/audit.jsonl").strip() or "logs/audit.jsonl",
     )

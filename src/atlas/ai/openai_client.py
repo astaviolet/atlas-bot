@@ -145,6 +145,8 @@ class OpenAICompatibleClient:
         system: str,
         history: list[dict[str, Any]],
         tools: list[dict[str, Any]],
+        model: str | None = None,
+        guild_id: int | None = None,  # aceito e ignorado: mantem a assinatura do Router
     ) -> ModelTurn:
         messages = self.to_messages(history, system=system)
         openai_tools = to_openai_tools(tools)
@@ -154,9 +156,14 @@ class OpenAICompatibleClient:
         else:
             tools_payload = None
 
+        # Quando o Router escolhe a rota, ele quer ESTA chamada neste modelo:
+        # o failover e dele, nao do cliente. Sem override, o cliente usa a
+        # propria lista (comportamento antigo, ainda valido em uso direto).
+        alvos = [model] if model else self.models
+
         ultimo_erro: Exception | None = None
         tentativa = 0
-        for modelo in self.models:
+        for modelo in alvos:
             for _ in range(self.max_attempts_per_model):
                 tentativa += 1
                 kwargs: dict[str, Any] = {
@@ -200,7 +207,64 @@ def _is_retryable(exc: Exception) -> bool:
     return status in (408, 409, 425, 429, 500, 502, 503, 504)
 
 
+def classify_error(exc: AIError) -> str:
+    """Categoria curta do erro, para metrica. Nunca inclui credencial."""
+    import re
+
+    texto = (str(exc) or "").lower()
+    m = re.search(r"http (\d{3})", texto)
+    if m:
+        codigo = int(m.group(1))
+        if codigo == 429:
+            return "rate_limit"
+        if codigo >= 500:
+            return "server_error"
+        if codigo in (401, 403):
+            return "auth"
+        if codigo == 404:
+            return "not_found"
+        return "client_error"
+    if "rate limit" in texto or "429" in texto or "limitou" in texto:
+        return "rate_limit"
+    if "timeout" in texto or "demorou" in texto:
+        return "timeout"
+    if "authentication" in texto or "chave" in texto:
+        return "auth"
+    if "nao encontrado" in texto or "not found" in texto or "404" in texto:
+        return "not_found"
+    if "conexao" in texto or "connection" in texto:
+        return "connection"
+    return "other"
+
+
+#: status que nao se resolvem insistindo: o pedido ou a credencial estao errados
+_PERMANENT_STATUS = frozenset({400, 401, 403, 404, 405, 422})
+
+
+def _retryable_for(exc: Exception) -> bool:
+    """Distingue fila/sobrecarga (insistir em outra rota) de erro permanente.
+
+    Chave recusada, modelo inexistente ou payload invalido nao mudam com retry,
+    entao a rota sai do pool em vez de gastar tentativa.
+    """
+    import openai
+
+    if isinstance(exc, (openai.AuthenticationError, openai.NotFoundError)):
+        return False
+    status = getattr(exc, "status_code", None)
+    if status in _PERMANENT_STATUS:
+        return False
+    return True
+
+
 def _translate(exc: Exception, model_name: str) -> AIError:
+    """Traduz excecao do SDK em AIError, ja com o veredito de retry."""
+    err = _build_error(exc, model_name)
+    err.retryable = _retryable_for(exc)
+    return err
+
+
+def _build_error(exc: Exception, model_name: str) -> AIError:
     """Traduz excecao do SDK em AIError com mensagem util para o usuario.
 
     Import tardio: nao obriga o pacote openai em quem so quer os fakes de teste.

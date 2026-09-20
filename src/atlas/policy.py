@@ -88,6 +88,25 @@ DESTRUCTIVE_TOOLS: frozenset[str] = frozenset(
     {"delete_channel", "delete_category", "delete_role"}
 )
 
+# Ferramentas que apenas leem o estado. Tudo que NAO esta aqui muda o servidor,
+# entao a lista e explicita em vez de depender do prefixo "get_": se alguem
+# criar uma ferramenta nova, ela nasce considerada mutacao (lado seguro).
+READ_ONLY_TOOLS: frozenset[str] = frozenset(
+    {
+        "get_server_info",
+        "get_channels",
+        "get_categories",
+        "get_channel",
+        "get_roles",
+        "get_role",
+    }
+)
+
+
+def is_read_only(tool: str) -> bool:
+    """True quando a ferramenta nao altera o servidor."""
+    return tool in READ_ONLY_TOOLS
+
 # Acoes que mudam o servidor inteiro.
 SERVER_WIDE_TOOLS: frozenset[str] = frozenset({"edit_server"})
 

@@ -5,11 +5,11 @@ from __future__ import annotations
 import pytest
 
 from atlas.embeds import EmbedKind
-from atlas.errors import GatewayError, AIError, PermissionError_
-from atlas.ai import FailingModelClient, ModelTurn, ScriptedModelClient
+from atlas.errors import AIError
+from atlas.ai import FailingModelClient
 from atlas.models import Perm
 
-from conftest import IDS, final, turn
+from conftest import final, turn
 
 
 # --------------------------------------------------------------------- caso 16
@@ -68,10 +68,10 @@ def test_19b_ia_falha_no_meio_do_laco(harness):
     original = h.agent.model.generate
     calls = {"n": 0}
 
-    def flaky(*, system, history, tools):
+    def flaky(**kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
-            return original(system=system, history=history, tools=tools)
+            return original(**kwargs)
         raise AIError("timeout", user_message="O modelo caiu no meio do caminho.")
 
     h.agent.model.generate = flaky

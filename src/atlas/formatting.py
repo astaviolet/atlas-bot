@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 from .embeds import EmbedBuilder, EmbedField, EmbedKind, EmbedSpec
-from .errors import AtlasError
 from .queue import ActionResult
 
 

@@ -23,7 +23,7 @@ from .formatting import (
     injection_embed,
     result_embeds,
 )
-from .policy import Policy
+from .policy import Policy, is_read_only
 from .prompts import build_system_prompt
 from .queue import ActionQueue, ActionResult
 from .session import Session, PendingConfirmation, classify_reply
@@ -194,7 +194,12 @@ class Agent:
 
         for turn in range(self.limits.max_turns):
             response = ensure_call_ids(
-                self.model.generate(system=system, history=session.history, tools=declarations),
+                self.model.generate(
+                    system=system,
+                    history=session.history,
+                    tools=declarations,
+                    guild_id=self.ctx.guild_id,
+                ),
                 turn_index=turn,
             )
 
@@ -228,6 +233,13 @@ class Agent:
             results = self.executor.execute(plan)
             all_results.extend(results)
             session.add_function_results([_result_payload(r) for r in results])
+
+            # Se algo mudou no servidor, a resposta guardada ja nao descreve a
+            # realidade: descarta o cache deste guild. So leitura nao invalida.
+            if any(not is_read_only(r.action.tool) for r in results):
+                invalidar = getattr(self.model, "invalidar_guild", None)
+                if invalidar is not None:
+                    invalidar(self.ctx.guild_id)
 
             # memoria de objetos criados, para "agora de permissao a ele"
             for result in results:

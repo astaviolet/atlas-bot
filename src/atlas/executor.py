@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .audit import AuditLog
-from .errors import ConfirmationRequired, ForbiddenAction, ToolError
+from .errors import ConfirmationRequired, ToolError
 from .models import GuildSnapshot
 from .policy import DESTRUCTIVE_TOOLS, Policy
 from .queue import ActionQueue, ActionResult, PlannedAction

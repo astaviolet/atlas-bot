@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Ponto de entrada.
 
-    python main.py            # inicia o bot (precisa de .env preenchido)
+    python main.py            # inicia o bot
     python main.py --check    # valida configuracao e sai
+    python main.py --health   # re-testa o pool de IA e imprime o painel
     python main.py --demo     # roda o agente contra um servidor simulado
 """
 
@@ -21,6 +22,8 @@ from atlas.demo import run_demo
 def main() -> int:
     parser = argparse.ArgumentParser(description="Atlas - agente de configuracao de servidores Discord")
     parser.add_argument("--check", action="store_true", help="valida configuracao e sai")
+    parser.add_argument("--health", action="store_true", help="re-testa o pool de IA e imprime o painel")
+    parser.add_argument("--health-pausa", type=float, default=1.0, help="pausa entre sondas do --health")
     parser.add_argument("--demo", action="store_true", help="roda contra servidor simulado, sem Discord")
     parser.add_argument("--demo-text", default=None, help="pedido a usar no modo demo")
     args = parser.parse_args()
@@ -36,6 +39,32 @@ def main() -> int:
         return 2
 
     audit = setup_logging(audit_path=settings.audit_path)
+
+    if args.health:
+        from atlas.ai import build_catalog, formatar_painel
+        from atlas.ai.discovery import reavaliar, resumo_probes
+        from atlas.ai.providers import catalog_summary
+        from atlas.ai.router import Router
+        from atlas.ai.stats import PoolStats
+
+        catalogo = build_catalog(settings)
+        print(f"re-testando {sum(len(g.models) for g in catalogo)} rotas em "
+              f"{len(catalogo)} gateways...\n")
+
+        def mostrar(r):
+            marca = "OK " if r.utilizavel else "   "
+            lat = f"{r.latency_ms}ms" if r.latency_ms else "-"
+            print(f"  {marca} {r.route:<52} {r.status:<16} {lat}")
+            if r.detail:
+                print(f"        {r.detail}")
+
+        registry, resultados = reavaliar(catalogo, pausa=args.health_pausa, on_result=mostrar)
+        router = Router(catalogo, health=registry, stats=PoolStats())
+        print()
+        print(formatar_painel(router.stats, registry.snapshot(), catalog_summary(catalogo)))
+        r = resumo_probes(resultados)
+        print(f"\nutilizaveis agora: {r['utilizaveis']}/{r['testadas']}  {r['por_status']}")
+        return 0 if r["utilizaveis"] else 3
 
     if args.check:
         faltando = settings.missing()

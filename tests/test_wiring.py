@@ -478,14 +478,16 @@ def test_cliente_ainda_exige_endereco_e_modelo():
         OpenAICompatibleClient(api_key="", base_url="https://x", model_name="")
 
 
-def test_build_ai_client_sem_chave_devolve_cliente_anonimo():
+def test_build_ai_client_sem_chave_devolve_pool_anonimo():
     """Sem nenhuma credencial o bot ainda tem uma camada de IA funcional."""
+    from atlas.ai import Router
     from atlas.config import Settings
 
     client = build_ai_client(Settings(discord_token="t"))
-    assert isinstance(client, OpenAICompatibleClient)
-    assert client.anonymous is True
-    assert client.model_name  # sempre ha um modelo, nao depende de chave
+    assert isinstance(client, Router)
+    assert client.total_routes > 0, "o pool nao pode nascer vazio"
+    # todo gateway do pool padrao e anonimo
+    assert all(not g.api_key for g in client.catalog)
 
 
 def test_configuracao_padrao_nao_exige_nenhuma_credencial_de_ia():
@@ -493,8 +495,20 @@ def test_configuracao_padrao_nao_exige_nenhuma_credencial_de_ia():
 
     s = Settings(discord_token="t")
     assert s.missing() == [], "so o token do Discord e obrigatorio"
-    assert s.ai_base_url.startswith("https://")
-    assert s.ai_model
+    assert s.effective_base_url.startswith("https://")
+    assert s.effective_model
+
+
+def test_default_nao_finge_ser_configuracao_do_usuario():
+    """Sem isso as rotas anonimas entrariam duas vezes no pool."""
+    from atlas.config import Settings
+
+    s = Settings(discord_token="t")
+    assert s.usuario_configurou_ia is False
+    assert s.ai_base_url == "", "o campo cru tem que continuar vazio"
+
+    explicita = Settings(discord_token="t", ai_base_url="https://x/v1", ai_model="m")
+    assert explicita.usuario_configurou_ia is True
 
 
 def test_env_vazio_cai_no_padrao_anonimo(monkeypatch):
@@ -503,9 +517,10 @@ def test_env_vazio_cai_no_padrao_anonimo(monkeypatch):
     for k in ("AI_BASE_URL", "AI_API_KEY", "AI_MODEL"):
         monkeypatch.delenv(k, raising=False)
     s = load_settings(env_file=None, require_secrets=False)
-    assert s.ai_base_url == DEFAULT_AI_BASE_URL
-    assert s.ai_model == DEFAULT_AI_MODEL
+    assert s.effective_base_url == DEFAULT_AI_BASE_URL
+    assert s.effective_model == DEFAULT_AI_MODEL
     assert s.ai_api_key == ""
+    assert s.usuario_configurou_ia is False
 
 
 def test_env_preenchido_vence_o_padrao(monkeypatch):
@@ -520,17 +535,24 @@ def test_env_preenchido_vence_o_padrao(monkeypatch):
         "https://outro.gateway/v1", "outro-modelo", "outra-chave",
     )
     c = build_ai_client(s)
-    assert c.anonymous is False and c.model_name == "outro-modelo"
+    assert c.catalog[0].id == "configurado"
+    assert c.catalog[0].models[0].model == "outro-modelo"
+    assert c.catalog[0].api_key == "outra-chave"
 
 
-def test_build_ai_client_com_credencial_devolve_cliente_openai():
+def test_gateway_configurado_entra_na_frente_do_pool():
+    """Preencher AI_* nao desliga o pool anonimo: vira prioridade + reserva."""
+    from atlas.ai import build_catalog
     from atlas.config import Settings
 
-    client = build_ai_client(
-        Settings(discord_token="t", ai_api_key="k", ai_base_url="https://gw.local/v1/", ai_model="m"),
-    )
-    assert isinstance(client, OpenAICompatibleClient)
-    assert client.model_name == "m"
+    s = Settings(discord_token="t", ai_api_key="k", ai_base_url="https://gw.local/v1/", ai_model="m1,m2")
+    catalogo = build_catalog(s)
+
+    assert catalogo[0].id == "configurado"
+    assert [m.model for m in catalogo[0].models] == ["m1", "m2"]
+    assert catalogo[0].api_key == "k"
+    assert len(catalogo) > 1, "o pool anonimo tem que continuar atras como reserva"
+    assert catalogo[0].models[0].weight > catalogo[1].models[0].weight
 
 
 def test_base_url_perde_a_barra_final():
@@ -615,13 +637,11 @@ def _mensagem(exc):
     ],
 )
 def test_erro_do_sdk_vira_mensagem_util(cls, status, esperado):
-    import openai
 
     assert esperado in _mensagem(_sdk_exc(cls, status))
 
 
 def test_erro_http_generico_inclui_o_status():
-    import openai
 
     assert "503" in _mensagem(_sdk_exc("APIStatusError", 503))
 
@@ -637,7 +657,6 @@ def test_excecao_desconhecida_ainda_vira_AIError():
 
 def test_generate_envolve_falha_do_sdk_em_AIError(monkeypatch):
     """O SDK nunca vaza para fora da camada de IA."""
-    import openai
     from atlas.errors import AIError
 
     client = OpenAICompatibleClient(api_key="k", base_url="https://gw/v1", model_name="m")
@@ -653,7 +672,6 @@ def test_generate_envolve_falha_do_sdk_em_AIError(monkeypatch):
 
 def test_erro_permanente_nao_perde_tempo_tentando_de_novo(monkeypatch):
     """Chave recusada nao e fila: falha na hora, sem retry nem failover."""
-    import openai
     from atlas.errors import AIError
 
     client = OpenAICompatibleClient(api_key="k", base_url="https://gw/v1", model_name="a,b,c")
@@ -672,7 +690,6 @@ def test_erro_permanente_nao_perde_tempo_tentando_de_novo(monkeypatch):
 
 def test_failover_passa_para_o_proximo_modelo_quando_o_primeiro_esta_ocupado(monkeypatch):
     """429/503 e fila, nao defeito: o proximo modelo da lista assume."""
-    import openai
 
     client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name="ocupado,bom")
     client.backoff_seconds = 0.0
@@ -932,7 +949,6 @@ def test_status_permanente_nao_e_retentado(status):
 
 def test_esgota_todos_os_modelos_antes_de_desistir(monkeypatch):
     """Se nenhum modelo responde, o usuario recebe AIError - nao silencio."""
-    import openai
     from atlas.errors import AIError
 
     client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name="a,b")

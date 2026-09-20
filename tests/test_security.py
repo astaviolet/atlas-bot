@@ -12,8 +12,6 @@ from atlas.embeds import EmbedKind
 from atlas.errors import (
     ForbiddenAction,
     GuildIsolationViolation,
-    HierarchyViolation,
-    QuotaExceeded,
 )
 from atlas.models import Perm
 from atlas.policy import FORBIDDEN_CAPABILITIES, Policy

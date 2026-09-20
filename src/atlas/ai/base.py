@@ -46,7 +46,16 @@ class ModelClient(Protocol):
         system: str,
         history: list[dict[str, Any]],
         tools: list[dict[str, Any]],
-    ) -> ModelTurn: ...
+        model: str | None = None,
+        guild_id: int | None = None,
+    ) -> ModelTurn:
+        """Pede um turno ao modelo.
+
+        `guild_id` existe por uma razao unica: permitir que a implementacao
+        isole cache e metrica por servidor. Ele NUNCA autoriza agir em outro
+        servidor - o guild de execucao vem do contexto da interacao, sempre.
+        """
+        ...
 
 
 def ensure_call_ids(turn: ModelTurn, *, turn_index: int) -> ModelTurn:
