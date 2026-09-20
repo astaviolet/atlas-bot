@@ -79,7 +79,7 @@ Seções na spec: **188**
 | 68 | OBSERVABILIDADE | PRONTA | `tests/test_observability.py` | resumo conta ok e falha, separa guilds, aguenta linha corrompida |
 | 69 | LOGS | PRONTA | `tests/test_audit.py` | segredo mascarado; parâmetros sensíveis não são auditados |
 | 70 | AUDITORIA | PRONTA | `tests/test_audit.py` | registro de auditoria tem os campos exigidos |
-| 71 | COMPONENTS V2 | PRONTA | `tests/test_embeds.py` | embed vira cartão Components V2 (flags 32768) |
+| 71 | COMPONENTS V2 | PRONTA | `tests/test_embeds.py` | os 10 padrões da spec existem (5 foram acrescentados agora: PERMISSION_ERROR, POLICY_DENIED, PARTIAL_SUCCESS, IN_PROGRESS, RATE_LIMITED) + Components V2 (flags 32768) |
 | 72 | UI CONTROLADA PELO CÓDIGO | PRONTA | `tests/test_embeds.py` | cartão V2 também passa pela limpeza; o modelo dá o texto, o código monta |
 | 73 | BOTÕES | PRONTA | `tests/test_botoes.py` | as sete barreiras do clique |
 | 74 | ERROS | PRONTA | `tests/test_errors.py` | erro de permissão e erro da API viram mensagem útil |

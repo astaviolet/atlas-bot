@@ -90,7 +90,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     178: (PRONTA, "tests/test_tools_basic.py", "não cria duas categorias"),
     180: (PRONTA, "tests/test_batch.py", "falha parcial: estado, logs e resposta"),
     68: (PRONTA, "tests/test_observability.py", "resumo conta ok e falha, separa guilds, aguenta linha corrompida"),
-    71: (PRONTA, "tests/test_embeds.py", "embed vira cartão Components V2 (flags 32768)"),
+    71: (PRONTA, "tests/test_embeds.py", "os 10 padrões da spec existem (5 foram acrescentados agora: PERMISSION_ERROR, POLICY_DENIED, PARTIAL_SUCCESS, IN_PROGRESS, RATE_LIMITED) + Components V2 (flags 32768)"),
     72: (PRONTA, "tests/test_embeds.py", "cartão V2 também passa pela limpeza; o modelo dá o texto, o código monta"),
     120: (PRONTA, "tests/test_observability.py", "as três perguntas apontam a falha"),
     121: (PRONTA, "tests/test_observability.py", "painel avisa IA morta, pool degradado, e diz quando está bem"),

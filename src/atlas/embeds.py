@@ -23,6 +23,14 @@ class EmbedKind(str, Enum):
     RESULT = "result"
     WARNING = "warning"
     HELP = "help"
+    # Os cinco abaixo fecham a lista da spec 71. Estavam faltando e a secao
+    # estava marcada PRONTA - era afirmacao falsa. CONFIRMATION_REQUIRED da spec
+    # e o CONFIRM acima (mesmo padrao, nome mais curto no codigo).
+    PERMISSION_ERROR = "permission_error"
+    POLICY_DENIED = "policy_denied"
+    PARTIAL_SUCCESS = "partial_success"
+    IN_PROGRESS = "in_progress"
+    RATE_LIMITED = "rate_limited"
 
 
 _STYLE: dict[EmbedKind, tuple[str, int, str]] = {
@@ -35,6 +43,14 @@ _STYLE: dict[EmbedKind, tuple[str, int, str]] = {
     EmbedKind.RESULT: ("📊", 0x1ABC9C, "resultado"),
     EmbedKind.WARNING: ("⚠️", 0xE67E22, "atencao"),
     EmbedKind.HELP: ("🧭", 0x95A5A6, "ajuda"),
+    # Cores distintas de ERROR e WARNING de proposito: quem ve a barra lateral
+    # do cartao precisa separar "o Discord negou" de "a politica do bot negou"
+    # de "deu rate limit" sem ler o texto.
+    EmbedKind.PERMISSION_ERROR: ("🔒", 0xC0392B, "sem permissao"),
+    EmbedKind.POLICY_DENIED: ("⛔", 0xD35400, "bloqueado por regra"),
+    EmbedKind.PARTIAL_SUCCESS: ("🟡", 0xF39C12, "parcial"),
+    EmbedKind.IN_PROGRESS: ("⏳", 0x5DADE2, "em andamento"),
+    EmbedKind.RATE_LIMITED: ("🐢", 0x7F8C8D, "devagar"),
 }
 
 
@@ -255,6 +271,25 @@ class EmbedBuilder:
 
     def help(self, title: str = "O que eu faco", **kw: Any) -> EmbedSpec:
         return self.build(EmbedKind.HELP, title, **kw)
+
+    def permission_error(self, title: str, description: str = "", **kw: Any) -> EmbedSpec:
+        """O Discord negou por falta de permissao real no servidor."""
+        return self.build(EmbedKind.PERMISSION_ERROR, title, description, **kw)
+
+    def policy_denied(self, title: str, description: str = "", **kw: Any) -> EmbedSpec:
+        """A politica do bot barrou - mesmo que o Discord deixasse."""
+        return self.build(EmbedKind.POLICY_DENIED, title, description, **kw)
+
+    def partial_success(self, title: str, description: str = "", **kw: Any) -> EmbedSpec:
+        """Parte do plano rodou. Diferente de SUCCESS de proposito: dizer
+        'pronto' quando metade falhou e sucesso falso (spec 185)."""
+        return self.build(EmbedKind.PARTIAL_SUCCESS, title, description, **kw)
+
+    def in_progress(self, title: str, description: str = "", **kw: Any) -> EmbedSpec:
+        return self.build(EmbedKind.IN_PROGRESS, title, description, **kw)
+
+    def rate_limited(self, title: str, description: str = "", **kw: Any) -> EmbedSpec:
+        return self.build(EmbedKind.RATE_LIMITED, title, description, **kw)
 
 
 class PlainTextRejected(RuntimeError):

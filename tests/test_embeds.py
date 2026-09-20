@@ -498,3 +498,83 @@ def test_result_embeds_montagem_real():
     assert embeds
     corpo = embeds[0].description or ""
     assert "Criados: 10" in corpo
+
+
+# ------------------------------------------------- spec 71: os 10 padroes
+#: Lista literal da spec 71. CONFIRMATION_REQUIRED e o CONFIRM do codigo.
+_PADROES_SPEC_71 = {
+    "SUCCESS": "SUCCESS",
+    "ERROR": "ERROR",
+    "PERMISSION_ERROR": "PERMISSION_ERROR",
+    "POLICY_DENIED": "POLICY_DENIED",
+    "CONFIRMATION_REQUIRED": "CONFIRM",
+    "PARTIAL_SUCCESS": "PARTIAL_SUCCESS",
+    "IN_PROGRESS": "IN_PROGRESS",
+    "INFO": "INFO",
+    "PLAN": "PLAN",
+    "RATE_LIMITED": "RATE_LIMITED",
+}
+
+
+def test_os_10_padroes_da_spec_71_existem():
+    """A secao 71 estava marcada PRONTA com 5 padroes faltando. Este teste e o
+    que impede aquilo de voltar: se alguem remover um, quebra aqui."""
+    from atlas.embeds import EmbedKind
+
+    tem = {k.name for k in EmbedKind}
+    for da_spec, no_codigo in _PADROES_SPEC_71.items():
+        assert no_codigo in tem, f"spec 71 pede {da_spec}, codigo nao tem {no_codigo}"
+
+
+def test_todo_kind_tem_estilo():
+    """Kind sem entrada em _STYLE estouraria KeyError na hora de montar o
+    cartao - ou seja, só em producao."""
+    from atlas.embeds import _STYLE, EmbedKind
+
+    for kind in EmbedKind:
+        assert kind in _STYLE, f"{kind.name} nao tem estilo"
+
+
+def test_os_5_novos_tem_metodo_no_builder():
+    from atlas.embeds import EmbedBuilder
+
+    b = EmbedBuilder()
+    for nome in ("permission_error", "policy_denied", "partial_success",
+                 "in_progress", "rate_limited"):
+        assert hasattr(b, nome), f"builder sem metodo {nome}"
+        spec = getattr(b, nome)("titulo", "corpo")
+        assert spec.description == "corpo"
+
+
+def test_os_5_novos_nao_levam_titulo_nem_rodape():
+    """Regra permanente do usuario: embed sem titulo e sem rodape. Vale para os
+    novos tambem - senao a regra passa a depender de qual tipo foi usado."""
+    from atlas.embeds import EmbedBuilder
+
+    b = EmbedBuilder()
+    for nome in ("permission_error", "policy_denied", "partial_success",
+                 "in_progress", "rate_limited"):
+        d = getattr(b, nome)("Atlas", "so o texto").to_discord_embed()
+        assert d.to_dict().get("title") is None, f"{nome} vazou titulo"
+        assert d.to_dict().get("footer") is None, f"{nome} vazou rodape"
+
+
+def test_as_cores_dos_5_novos_sao_distintas():
+    """Quem ve a barra lateral precisa separar 'o Discord negou' de 'a regra do
+    bot negou' de 'deu rate limit' sem ler o texto."""
+    from atlas.embeds import EmbedBuilder
+
+    b = EmbedBuilder()
+    cores = {getattr(b, n)("t", "d").color
+             for n in ("permission_error", "policy_denied", "partial_success",
+                       "in_progress", "rate_limited")}
+    assert len(cores) == 5, f"cores repetidas entre os 5 novos: {cores}"
+
+
+def test_partial_success_nao_e_success():
+    """Dizer 'pronto' quando metade falhou e sucesso falso (spec 185)."""
+    from atlas.embeds import EmbedBuilder, EmbedKind
+
+    b = EmbedBuilder()
+    assert b.partial_success("t", "d").kind == EmbedKind.PARTIAL_SUCCESS
+    assert b.partial_success("t", "d").kind != EmbedKind.SUCCESS
