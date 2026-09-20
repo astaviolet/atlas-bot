@@ -42,13 +42,36 @@ def _health() -> int:
     return 0 if ok else 1
 
 
+def _check() -> int:
+    """Valida configuracao e monta o bot sem conectar.
+
+    O workflow do Actions roda isto antes de subir o bot, para um erro de
+    configuracao aparecer em segundos em vez de derrubar a run no meio.
+    """
+    from atlas.minimo import montar
+
+    settings = load_settings()
+    bot = montar(settings=settings)
+    print(f"  token: {'ok' if settings.discord_token else 'FALTANDO'}")
+    print(f"  ferramentas: {len(bot.registry.names)}")
+    print(f"  rotas de IA: {sum(len(g.models) for g in __import__('atlas.ai.providers', fromlist=['CATALOG']).CATALOG)}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="atlas")
     parser.add_argument("--health", action="store_true", help="testa o pool de IA e sai")
+    parser.add_argument("--check", action="store_true", help="valida a configuracao e sai")
     args = parser.parse_args()
 
     if args.health:
         return _health()
+    if args.check:
+        try:
+            return _check()
+        except ConfigError as exc:
+            print(f"configuracao invalida: {exc}", file=sys.stderr)
+            return 2
 
     setup_logging()
     try:
