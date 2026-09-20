@@ -97,6 +97,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     46: (PRONTA, "tests/test_reforma.py", "nada é excluído: sobra vira suspeita para decisão humana; canal padrão é preservado"),
     84: (PRONTA, "tests/test_reforma.py", "AUDITAR → MAPEAR → PLANEJAR → MOSTRAR IMPACTO; não executa"),
     85: (PRONTA, "tests/test_reforma.py", "mapeia old→new e preserva id: renomeia e move em vez de excluir e recriar"),
+    131: (PRONTA, "tests/test_reforma.py", "\"arruma\", \"organiza\", \"refaz\" viram auditoria + plano de reforma; alvo pontual não"),
     21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),

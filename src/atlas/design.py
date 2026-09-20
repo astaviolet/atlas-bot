@@ -28,7 +28,9 @@ para enfiar de contrabando aqui.
 
 from __future__ import annotations
 
+import logging
 import re
+from typing import Any
 
 #: Palavras que indicam "projetar uma estrutura", nao "fazer uma operacao".
 #: Mantido curto de proposito: falso positivo custa ~800 tokens em todo pedido.
@@ -44,6 +46,8 @@ _GATILHOS = (
     r"\bonboarding\b",
     r"\bcategorias?\b[^.]{0,30}\bcanais\b",
 )
+logger = logging.getLogger(__name__)
+
 _RE_GATILHO = re.compile("|".join(_GATILHOS), re.IGNORECASE)
 
 #: Operacoes simples que por acaso contem uma palavra de gatilho.
@@ -181,4 +185,98 @@ def proposta_de_design(texto: str, n_membros: int | None = None) -> str:
         f"Porte considerado: {briefing.porte.value} | estilo: {briefing.estilo.value} "
         f"| dominio: {briefing.dominio.value} | nota interna: {nota['geral']}/10"
     )
+    return "\n".join(linhas)
+
+
+# ---------------------------------------------------------------------------
+# Fase 26: proposta de reforma (spec 45, 46, 84, 131)
+# ---------------------------------------------------------------------------
+_RE_REFORMA = re.compile(
+    r"\b(?:arrum|organiz|refaz|reconstru|reform|melhor|limp|otimiz)\w*",
+    re.IGNORECASE,
+)
+
+
+def is_pedido_de_reforma(texto: str) -> bool:
+    """Pedidos curtos da spec 131: "arruma esse servidor", "organiza",
+    "faz bonito". Determinístico, como `is_pedido_de_design`.
+
+    Não basta conter a palavra: "arruma o nome do canal" é operação simples, e
+    jogar um plano de reforma inteiro ali custaria tokens e confundiria.
+    """
+    if not texto or not texto.strip():
+        return False
+    if not _RE_REFORMA.search(texto):
+        return False
+    palavras = texto.split()
+    # pedido curto sem alvo explicito ("organiza") e reforma do servidor inteiro
+    if len(palavras) <= 2:
+        return True
+    # com alvo pontual, nao e reforma de servidor
+    if re.search(r"\b(?:canal|cargo|categoria|nome|topico|tópico)\b", texto, re.IGNORECASE):
+        return False
+    return True
+
+
+def proposta_de_reforma(texto: str, snapshot: Any, n_membros: int | None = None) -> str:
+    """Audita o servidor REAL e devolve o plano de reforma como texto.
+
+    Diferença para `proposta_de_design`: aquilo projeta do zero, isto parte do
+    que já existe. Por isso precisa do snapshot — sem ele não há o que
+    reaproveitar e a "reforma" viraria reconstrução, que é o que a spec 46
+    proíbe como padrão.
+    """
+    from .design_system import (
+        Briefing,
+        inferir_dominio,
+        inferir_estilo,
+        inferir_porte,
+    )
+    from .reforma import nomenclatura_dominante, planejar_reforma
+
+    if not is_pedido_de_reforma(texto):
+        return ""
+    if snapshot is None:
+        return ""
+
+    briefing = Briefing(
+        tema=texto,
+        dominio=inferir_dominio(texto),
+        porte=inferir_porte(n_membros),
+        # segue o estilo que o servidor ja usa em vez de impor outro (spec 46)
+        estilo=inferir_estilo(texto),
+    )
+    try:
+        reforma = planejar_reforma(snapshot, briefing)
+        estilo_atual = nomenclatura_dominante(snapshot)
+    except Exception:
+        # Reforma que falha nao pode derrubar o pedido. O modelo segue sem a
+        # proposta, e o erro vai para o log de verdade - nao some em silencio.
+        logger.exception("proposta de reforma falhou")
+        return ""
+
+    linhas = [
+        "AUDITORIA DO SERVIDOR ATUAL",
+    ]
+    if reforma.achados:
+        for a in reforma.achados:
+            linhas.append(f"  [{a.severidade}] {a.problema}")
+    else:
+        linhas.append("  nenhum defeito objetivo encontrado")
+    linhas.append("")
+    linhas.append("PLANO DE REFORMA (reaproveita o que existe; NADA é excluído):")
+    for a in reforma.renomear:
+        linhas.append(f"  renomear {a.params} — {a.motivo}")
+    for a in reforma.mover:
+        linhas.append(f"  mover {a.params} — {a.motivo}")
+    for a in reforma.criar:
+        linhas.append(f"  criar {a.params} — {a.motivo}")
+    linhas.append("")
+    linhas.append(f"Impacto: {reforma.impacto().replace(chr(10), ' | ')}")
+    linhas.append(f"Nomenclatura em uso no servidor: {estilo_atual.value} (siga esta)")
+    if reforma.suspeitas:
+        linhas.append(
+            "Canais que parecem sobra — NÃO exclua sem o usuário confirmar: "
+            + ", ".join(reforma.suspeitas[:12])
+        )
     return "\n".join(linhas)

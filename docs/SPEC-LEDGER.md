@@ -139,7 +139,7 @@ Seções na spec: **188**
 | 128 | NÃO CRIAR COMPLEXIDADE SEM NECESSIDADE | ABERTA | `—` |  |
 | 129 | PRINCÍPIO DE SIMPLICIDADE | ABERTA | `—` |  |
 | 130 | EXPERIÊNCIA DO USUÁRIO | PARCIAL | `src/atlas/design.py` | proposta concreta entra no prompt |
-| 131 | INTERPRETAÇÃO DE PEDIDOS CURTOS | ABERTA | `—` |  |
+| 131 | INTERPRETAÇÃO DE PEDIDOS CURTOS | PRONTA | `tests/test_reforma.py` | "arruma", "organiza", "refaz" viram auditoria + plano de reforma; alvo pontual não |
 | 132 | NÃO ASSUMIR DEMAIS | ABERTA | `—` |  |
 | 133 | EXPLICAÇÃO DE AÇÕES | ABERTA | `—` |  |
 | 134 | LOGS TÉCNICOS | ABERTA | `—` |  |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **84**
+- PRONTA: **85**
 - PARCIAL: **6**
-- ABERTA: **92**
+- ABERTA: **91**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 

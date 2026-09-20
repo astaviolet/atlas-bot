@@ -244,3 +244,62 @@ def test_planejar_reforma_devolve_os_achados_da_auditoria():
 def test_impacto_nao_tem_placeholder_de_f_string():
     r = planejar_reforma(_servidor_bagunçado(), Briefing(dominio=Dominio.COMUNIDADE))
     assert "Excluídos: 0" in r.impacto()
+
+
+# ------------------------------------------- Fase 26: a reforma chega no agente
+def test_deteccao_de_pedido_de_reforma():
+    from atlas.design import is_pedido_de_reforma
+
+    for t in ("arruma esse servidor", "organiza", "refaz o servidor", "melhora isso"):
+        assert is_pedido_de_reforma(t), t
+    # alvo pontual nao e reforma de servidor
+    assert not is_pedido_de_reforma("arruma o nome do canal")
+    assert not is_pedido_de_reforma("cria um canal chamado x")
+    assert not is_pedido_de_reforma("")
+
+
+def test_proposta_de_reforma_e_gerada():
+    from atlas.design import proposta_de_reforma
+
+    snap = _servidor_bagunçado()
+    t = proposta_de_reforma("arruma esse servidor", snap, n_membros=40)
+    assert t, "pedido de reforma tem que gerar proposta"
+    assert "AUDITORIA DO SERVIDOR ATUAL" in t
+    assert "NADA é excluído" in t
+    assert "Nomenclatura em uso" in t
+
+
+def test_proposta_de_reforma_nao_aparece_em_pedido_comum():
+    from atlas.design import proposta_de_reforma
+
+    assert proposta_de_reforma("cria um canal chamado geral", _servidor_bagunçado()) == ""
+    assert proposta_de_reforma("arruma esse servidor", None) == ""
+
+
+def test_proposta_de_reforma_chega_ao_prompt_de_sistema():
+    """Sem isto o modulo de reforma seria codigo morto - mesma licao da Fase 22."""
+    from atlas.config import Limits
+    from atlas.policy import ActionBudget, Policy
+    from atlas.prompts import build_system_prompt
+    from atlas.tools import build_registry
+    from atlas.tools.base import ToolContext
+    from atlas.testing.fake_gateway import FakeGateway
+
+    L = Limits()
+    gw = FakeGateway()
+    pol = Policy(
+        guild_id=gw.guild_id,
+        budget=ActionBudget(
+            max_actions=L.max_actions_per_plan,
+            max_creates=L.max_creates_per_plan,
+            max_deletes=L.max_deletes_per_plan,
+        ),
+        destructive_confirm_threshold=L.destructive_confirm_threshold,
+    )
+    ctx = ToolContext(guild_id=gw.guild_id, gateway=gw, policy=pol, limits=L,
+                      snapshot=gw.snapshot())
+    reg = build_registry()
+    com = build_system_prompt(ctx.snapshot, reg, pol, request="arruma esse servidor")
+    sem = build_system_prompt(ctx.snapshot, reg, pol, request="cria um canal chamado x")
+    assert "AUDITORIA DO SERVIDOR ATUAL" in com
+    assert "AUDITORIA DO SERVIDOR ATUAL" not in sem

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .design import doutrina_de_design, proposta_de_design
+from .design import doutrina_de_design, proposta_de_design, proposta_de_reforma
 from .models import GuildSnapshot
 from .policy import Policy
 from .tools.base import ToolRegistry
@@ -116,6 +116,11 @@ def build_system_prompt(
     # Proposta concreta (Fase 22). A doutrina diz como pensar e o modelo ignorou
     # (medido na Fase 5); isto diz o que construir, com nome real.
     proposta = proposta_de_design(request)
+    # Reforma (Fase 26): "arruma esse servidor" parte do que ja existe, entao
+    # precisa do snapshot. Mutuamente excludente com projeto do zero na pratica:
+    # um pedido ou cria estrutura nova ou reorganiza a que existe.
+    if not proposta:
+        proposta = proposta_de_reforma(request, snapshot)
     if proposta:
         doutrina = f"{doutrina}\n\n{proposta}" if doutrina else proposta
 
