@@ -42,12 +42,12 @@ Seções na spec: **188**
 | 31 | NÃO COPIAR SERVIDORES | FORA DE ESCOPO | `decisão` | pesquisa na web |
 | 32 | CATÁLOGO DE PADRÕES | PARCIAL | `src/atlas/catalogo.py` | estrutura existe; a FONTE da spec é 'referências pesquisadas' e não houve pesquisa - padrões estão NÃO VERIFICADO |
 | 33 | EVOLUÇÃO DO CATÁLOGO | PRONTA | `tests/test_catalogo.py` | armazena princípios, não templates; cresce por feedback |
-| 34 | IDENTIDADE TEMÁTICA | ABERTA | `—` |  |
+| 34 | IDENTIDADE TEMÁTICA | PARCIAL | `src/atlas/design.py` | tema influencia vocabulário via proposta no prompt, mas não muda estrutura em código - a spec pede mais que isso |
 | 35 | DIREÇÃO VISUAL | PRONTA | `tests/test_design_system.py` | 13 estilos visuais |
 | 36 | NOMENCLATURA | PRONTA | `tests/test_design_system.py` | nomenclatura uniforme, sem misturar |
 | 37 | CATEGORIAS | PRONTA | `tests/test_design_system.py` | áreas conceituais com propósito |
 | 38 | CANAIS | PRONTA | `tests/test_design_system.py` | todo canal tem propósito declarado |
-| 39 | TIPOS DE CANAL | ABERTA | `—` |  |
+| 39 | TIPOS DE CANAL | PRONTA | `tests/test_design_system.py` | texto, voz, anúncio e fórum; tem teste que compara com o enum real da tool |
 | 40 | CARGOS | PRONTA | `tests/test_design_system.py` | funcional x identidade separados |
 | 41 | HIERARQUIA DE CARGOS | PRONTA | `tests/test_design_system.py` | hierarquia cresce com o porte |
 | 42 | PERMISSÕES | PRONTA | `tests/test_design_system.py` | nenhum funcional nasce com administrator |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **79**
-- PARCIAL: **5**
-- ABERTA: **98**
+- PRONTA: **80**
+- PARCIAL: **6**
+- ABERTA: **96**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 

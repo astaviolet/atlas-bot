@@ -289,7 +289,7 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
             ("clipes", "text", "momento engraçado"),
         ]),
         ("jogo", "falar do jogo", [
-            ("dúvidas", "text", "pergunta de quem está aprendendo"),
+            ("dúvidas", "forum", "pergunta de quem está aprendendo"),
             ("sala geral", "voice", "voz aberta"),
         ]),
     ],
@@ -304,8 +304,8 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
             ("recrutamento", "text", "entrar em facção"),
         ]),
         ("suporte", "resolver problema", [
-            ("dúvidas", "text", "pergunta sobre a cidade"),
-            ("feedback", "text", "o que melhorar"),
+            ("dúvidas", "forum", "pergunta sobre a cidade"),
+            ("feedback", "forum", "o que melhorar"),
         ]),
         ("voz", "interpretar", [
             ("sala geral", "voice", "voz aberta"),
@@ -335,10 +335,10 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
         ]),
         ("comunidade", "conviver", [
             ("bate-papo", "text", "conversa geral"),
-            ("feedback", "text", "o que a pessoa quer ver"),
+            ("feedback", "forum", "o que a pessoa quer ver"),
         ]),
         ("apoio", "resolver", [
-            ("dúvidas", "text", "pergunta sobre conteúdo"),
+            ("dúvidas", "forum", "pergunta sobre conteúdo"),
         ]),
     ],
     Dominio.LOJA: [
@@ -348,11 +348,11 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
             ("novidades", "announcement", "produto novo e promoção"),
         ]),
         ("atendimento", "comprar e resolver", [
-            ("suporte", "text", "pedido e problema"),
-            ("dúvidas", "text", "pergunta antes de comprar"),
+            ("suporte", "forum", "pedido e problema"),
+            ("dúvidas", "forum", "pergunta antes de comprar"),
         ]),
         ("produto", "mostrar o que vende", [
-            ("feedback", "text", "avaliação de quem comprou"),
+            ("feedback", "forum", "avaliação de quem comprou"),
         ]),
     ],
     Dominio.SAAS: [
@@ -361,9 +361,9 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
             ("novidades", "announcement", "release e changelog"),
         ]),
         ("suporte", "resolver problema", [
-            ("dúvidas", "text", "pergunta de uso"),
-            ("feedback", "text", "pedido de funcionalidade"),
-            ("ideias", "text", "proposta da comunidade"),
+            ("dúvidas", "forum", "pergunta de uso"),
+            ("feedback", "forum", "pedido de funcionalidade"),
+            ("ideias", "forum", "proposta da comunidade"),
         ]),
         ("comunidade", "trocar experiência", [
             ("bate-papo", "text", "conversa entre usuários"),
@@ -376,8 +376,8 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
             ("avisos", "announcement", "aula e prazo"),
         ]),
         ("estudo", "aprender", [
-            ("dúvidas", "text", "pergunta sobre a matéria"),
-            ("ideias", "text", "material e referência"),
+            ("dúvidas", "forum", "pergunta sobre a matéria"),
+            ("ideias", "forum", "material e referência"),
         ]),
         ("convivência", "trocar", [
             ("bate-papo", "text", "conversa geral"),

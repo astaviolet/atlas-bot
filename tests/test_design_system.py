@@ -300,3 +300,47 @@ def test_proposta_chega_ao_prompt_de_sistema():
     sem_pedido = build_system_prompt(ctx.snapshot, reg, pol, request="cria um canal chamado geral")
     assert "PROPOSTA DE ARQUITETURA" in com_pedido
     assert "PROPOSTA DE ARQUITETURA" not in sem_pedido
+
+
+# ------------------------------------------------- spec 39: nem tudo é texto
+def test_nem_tudo_e_canal_de_texto():
+    """Spec 39: 'nao assumir que tudo deve ser texto'. Se todo canal do projeto
+    sair como texto, o design nao escolheu tipo nenhum."""
+    for dominio in Dominio:
+        arq = projetar(Briefing(dominio=dominio))
+        tipos = {c.tipo for cat in arq.categorias for c in cat.canais}
+        assert tipos != {"text"}, f"{dominio.value}: tudo virou texto"
+
+
+def test_forum_vai_para_onde_a_conversa_e_por_topico():
+    """Forum e para pergunta/suporte/ideia - cada topico vira uma thread.
+    Nao e decoracao: colocar forum em 'clipes' seria pior que texto."""
+    arq = projetar(Briefing(dominio=Dominio.SAAS))
+    por_nome = {c.nome: c.tipo for cat in arq.categorias for c in cat.canais}
+    assert any(t == "forum" for t in por_nome.values()), por_nome
+
+
+def test_forum_nao_vira_para_canal_de_conversa_corrida():
+    arq = projetar(Briefing(dominio=Dominio.COMUNIDADE))
+    por_nome = {c.nome: c.tipo for cat in arq.categorias for c in cat.canais}
+    for nome, tipo in por_nome.items():
+        if "bate-papo" in nome:
+            assert tipo == "text", "bate-papo em forum atrapalha conversa corrida"
+
+
+def test_tipos_usados_estao_no_schema_da_tool():
+    """Se o design inventar um tipo que a tool recusa, o plano falha na execução.
+    Este teste compara com o enum real de src/atlas/tools/channels.py."""
+    import re
+    from pathlib import Path
+
+    fonte = (Path(__file__).resolve().parent.parent / "src" / "atlas" / "tools"
+             / "channels.py").read_text(encoding="utf-8")
+    m = re.search(r'"enum": \[([^\]]+)\]', fonte)
+    assert m, "enum de tipo de canal sumiu do schema"
+    aceitos = {x.strip().strip('"') for x in m.group(1).split(",")}
+    usados = set()
+    for dominio in Dominio:
+        for cat in projetar(Briefing(dominio=dominio)).categorias:
+            usados.update(c.tipo for c in cat.canais)
+    assert usados <= aceitos, f"design usa tipo que a tool recusa: {usados - aceitos}"

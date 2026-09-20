@@ -91,6 +91,8 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     120: (PRONTA, "tests/test_observability.py", "as três perguntas apontam a falha"),
     121: (PRONTA, "tests/test_observability.py", "painel avisa IA morta, pool degradado, e diz quando está bem"),
     122: (PRONTA, "tests/test_alertas.py", "os seis gatilhos da spec: erro elevado, pool fora, fila acumulada, 429, falhas repetidas, tarefas presas"),
+    39: (PRONTA, "tests/test_design_system.py", "texto, voz, anúncio e fórum; tem teste que compara com o enum real da tool"),
+    34: (PARCIAL, "src/atlas/design.py", "tema influencia vocabulário via proposta no prompt, mas não muda estrutura em código - a spec pede mais que isso"),
     21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),
