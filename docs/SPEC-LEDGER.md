@@ -76,11 +76,11 @@ Seções na spec: **188**
 | 65 | LOCK POR GUILD | PRONTA | `tests/test_flow_control.py` | trava por guild |
 | 66 | RATE LIMIT DISCORD | PRONTA | `tests/test_security.py` | rate limit por servidor |
 | 67 | CACHE | PRONTA | `tests/test_router.py` | cache expira e é invalidado por mutação |
-| 68 | OBSERVABILIDADE | ABERTA | `—` |  |
+| 68 | OBSERVABILIDADE | PRONTA | `tests/test_observability.py` | resumo conta ok e falha, separa guilds, aguenta linha corrompida |
 | 69 | LOGS | PRONTA | `tests/test_audit.py` | segredo mascarado; parâmetros sensíveis não são auditados |
 | 70 | AUDITORIA | PRONTA | `tests/test_audit.py` | registro de auditoria tem os campos exigidos |
-| 71 | COMPONENTS V2 | ABERTA | `—` |  |
-| 72 | UI CONTROLADA PELO CÓDIGO | ABERTA | `—` |  |
+| 71 | COMPONENTS V2 | PRONTA | `tests/test_embeds.py` | embed vira cartão Components V2 (flags 32768) |
+| 72 | UI CONTROLADA PELO CÓDIGO | PRONTA | `tests/test_embeds.py` | cartão V2 também passa pela limpeza; o modelo dá o texto, o código monta |
 | 73 | BOTÕES | PRONTA | `tests/test_botoes.py` | as sete barreiras do clique |
 | 74 | ERROS | PRONTA | `tests/test_errors.py` | erro de permissão e erro da API viram mensagem útil |
 | 75 | PESQUISA CONTÍNUA | FORA DE ESCOPO | `decisão` | pesquisa na web |
@@ -128,9 +128,9 @@ Seções na spec: **188**
 | 117 | CACHE DE PESQUISA | ABERTA | `—` |  |
 | 118 | QUALIDADE DAS FONTES | ABERTA | `—` |  |
 | 119 | SISTEMA DE CONFIANÇA | PRONTA | `tests/test_catalogo.py` | filtro por confiança mínima |
-| 120 | AUTO-DIAGNÓSTICO | ABERTA | `—` |  |
-| 121 | HEALTH DASHBOARD INTERNO | ABERTA | `—` |  |
-| 122 | ALERTAS | ABERTA | `—` |  |
+| 120 | AUTO-DIAGNÓSTICO | PRONTA | `tests/test_observability.py` | as três perguntas apontam a falha |
+| 121 | HEALTH DASHBOARD INTERNO | PRONTA | `tests/test_observability.py` | painel avisa IA morta, pool degradado, e diz quando está bem |
+| 122 | ALERTAS | PRONTA | `tests/test_alertas.py` | os seis gatilhos da spec: erro elevado, pool fora, fila acumulada, 429, falhas repetidas, tarefas presas |
 | 123 | LIMPEZA DE CÓDIGO | ABERTA | `—` |  |
 | 124 | COMPATIBILIDADE | ABERTA | `—` |  |
 | 125 | DISCORD API CHANGES | ABERTA | `—` |  |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **73**
+- PRONTA: **79**
 - PARCIAL: **5**
-- ABERTA: **104**
+- ABERTA: **98**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 
