@@ -53,10 +53,10 @@ echo "   conta: $EU"
 
 echo "== 2/5 criando o repo $EU/$REPO =="
 CRIADO=$(auth -X POST "$API/user/repos" -d "{\"name\":\"$REPO\",\"private\":false,\"auto_init\":false}")
-if echo "$CRIADO" | grep -q '"already exists"'; then
-  echo "   ja existe, vou usar o que esta la"
-elif echo "$CRIADO" | grep -q '"full_name"'; then
+if echo "$CRIADO" | grep -q '"full_name"'; then
   echo "   criado"
+elif echo "$CRIADO" | grep -qi 'already exists'; then
+  echo "   ja existe, vou usar o que esta la"
 else
   echo "   falhou: $CRIADO" | head -3
   exit 1
