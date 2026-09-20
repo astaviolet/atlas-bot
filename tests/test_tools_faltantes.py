@@ -194,8 +194,6 @@ def test_nao_apaga_canal_marcado_como_controle_mesmo_de_outro_canal(harness):
     pode mirar o canal de controle a partir de qualquer lugar."""
     from atlas.models import Channel, ChannelType
 
-    from conftest import IDS
-
     h = harness([final("x")])
     novo = Channel(id=999001, name="outro-lugar", type=ChannelType.GUILD_TEXT,
                    topic="[atlas-control] canal de controle")
