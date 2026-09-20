@@ -1527,3 +1527,75 @@ def test_aviso_online_sem_canal_de_controle_nao_quebra(monkeypatch):
 
     assert enviados == []
     assert bot._ready_embeds == 0, "pode tentar de novo na proxima reconexao"
+
+
+# ------------------------------------------------- doutrina de design (seletiva)
+@pytest.mark.parametrize("texto", [
+    "Cria um servidor de Fortnite",
+    "cria um servidor bonito de minecraft",
+    "monta uma estrutura de canais pra minha comunidade",
+    "faz bonito",
+    "deixa bonito esse servidor",
+    "quero um servidor tematico de GTA RP",
+    "reorganiza as categorias",
+])
+def test_pedido_de_design_detectado(texto):
+    from atlas.design import is_pedido_de_design
+
+    assert is_pedido_de_design(texto) is True, texto
+
+
+@pytest.mark.parametrize("texto", [
+    "cite todos os cargos",
+    "quantos canais tem esse servidor?",
+    "apague o canal teste",
+    "qual o nome do servidor?",
+    "renomeia o cargo Membro",
+    "crie um canal chamado teste",
+    "",
+    "   ",
+])
+def test_pedido_comum_nao_paga_doutrina(texto):
+    """Falso positivo aqui custa ~800 tokens em TODA volta de IA do pedido."""
+    from atlas.design import is_pedido_de_design
+
+    assert is_pedido_de_design(texto) is False, texto
+
+
+def test_doutrina_entra_no_prompt_so_quando_e_projeto():
+    from atlas.bot import AtlasBot  # noqa: F401  (garante import do pacote)
+    from atlas.prompts import build_system_prompt
+    from atlas.testing.fake_gateway import FakeGateway
+
+    gw = FakeGateway()
+    gw.seed_gamer_layout()
+    snap = gw.snapshot()
+    from atlas.policy import ActionBudget, Policy
+    from atlas.tools import build_registry
+
+    reg, pol = build_registry(), Policy(guild_id=snap.id, budget=ActionBudget(60, 40, 25))
+
+    comum = build_system_prompt(snap, reg, pol, request="cite todos os cargos")
+    projeto = build_system_prompt(snap, reg, pol, request="cria um servidor de Fortnite")
+
+    assert "PROJETO DE SERVIDOR" not in comum
+    assert "PROJETO DE SERVIDOR" in projeto
+    assert len(projeto) - len(comum) > 2000, "a doutrina tem que estar la de verdade"
+
+
+def test_regra_de_resposta_exata_esta_no_prompt():
+    """Bug real: 'cite todos os cargos' devolvia nome junto com id."""
+    from atlas.policy import ActionBudget, Policy
+    from atlas.prompts import build_system_prompt
+    from atlas.testing.fake_gateway import FakeGateway
+    from atlas.tools import build_registry
+
+    gw = FakeGateway()
+    gw.seed_gamer_layout()
+    snap = gw.snapshot()
+    texto = build_system_prompt(
+        snap, build_registry(), Policy(guild_id=snap.id, budget=ActionBudget(60, 40, 25)),
+        request="cite todos os cargos",
+    )
+    assert "EXATAMENTE o que foi pedido" in texto
+    assert "so os nomes" in texto

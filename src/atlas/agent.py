@@ -192,6 +192,7 @@ class Agent:
             source_channel_id=self.ctx.source_channel_id,
             source_author_id=self.ctx.source_author_id,
             source_author_name=self.ctx.source_author_name,
+            request=text,
         )
         declarations = self.registry.declarations()
 

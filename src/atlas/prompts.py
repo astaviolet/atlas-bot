@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .design import doutrina_de_design
 from .models import GuildSnapshot
 from .policy import Policy
 from .tools.base import ToolRegistry
@@ -60,6 +61,11 @@ cabecalho com #, sem paragrafo. Sem marcador tipo <CPA_DONE>.
 Errado: "Apaguei os cargos Membro Ativo e caps-renomeado. @everyone nao pode
 ser excluido pois e o cargo padrao. Se quiser, posso apagar mais."
 Certo: "Apaguei Membro Ativo e caps-renomeado. @everyone nao da para excluir."
+Responda EXATAMENTE o que foi pedido, e nada alem. "cite todos os cargos" =
+so os nomes, um por linha. Nao junte id, nao explique, nao acrescente campo que
+ninguem pediu. So mostre id quando a pessoa pedir id ou quando for precisar dele
+para agir. "quantos canais tem?" = o numero. "quais as permissoes?" = as
+permissoes, nao um resumo do servidor.
 Ha um limitador que corta acima de 220 caracteres: se escrever demais, o final
 some."""
 
@@ -100,8 +106,13 @@ def build_system_prompt(
     source_channel_id: int | None = None,
     source_author_id: int | None = None,
     source_author_name: str | None = None,
+    request: str = "",
 ) -> str:
     never = ", ".join(policy.never_grantable_names())
+
+    # Doutrina de design entra SO em pedido de projetar servidor. Em "cite os
+    # cargos" ela custaria ~800 tokens a toa em cada volta do agente.
+    doutrina = doutrina_de_design(request)
 
     # Sem isto o modelo nao tem como saber onde a conversa acontece. Pede o id
     # de volta ("qual canal voce quer manter?") ou chuta um canal errado.
@@ -140,6 +151,8 @@ parametro e ignorado pelo executor; nao tente.
 {conversa}
 
 {indice_do_servidor(snapshot)}
+
+{doutrina}
 
 {FORBIDDEN}
 
