@@ -560,3 +560,63 @@ def test_catalogo_nao_tem_gateway_vazio():
     vazios = [g.id for g in catalogo if not g.models]
     assert vazios == [], f"gateways sem rota no catalogo: {vazios}"
     assert all(g.id != "configurado" for g in catalogo)
+
+
+# ------------------------------------- regressao: gateway limitado come o orcamento
+def _catalogo_um_gateway_gordo() -> list[Gateway]:
+    """Reproduz o pool real: 9 rotas no mesmo gateway (kilo) + rotas em outros.
+    O limite do pool gratuito e por IP no GATEWAY, entao as 9 caem juntas."""
+    gordas = [ModelRoute(gateway="G", model=f"g{i}", weight=100 - i) for i in range(9)]
+    return [
+        Gateway(id="G", base_url="https://g/v1", rpm=None, concurrency=2, models=gordas),
+        Gateway(id="S", base_url="https://s/v1", rpm=None, concurrency=1, models=[
+            ModelRoute(gateway="S", model="s1", weight=40),
+        ]),
+    ]
+
+
+def test_gateway_limitado_nao_consome_o_orcamento_inteiro():
+    """BUG REAL, medido em producao: 12,3s e 'Nenhum provedor respondeu' com 2
+    rotas boas disponiveis. As 9 primeiras rotas do catalogo eram do mesmo
+    gateway, que rate-limita por IP - o laco queimava max_attempts=8 ali e nunca
+    chegava no outro gateway, que estava saudavel."""
+    comportamento = {f"g{i}": AIError("429", user_message="limitou") for i in range(9)}
+    comportamento["s1"] = "ok"
+
+    router, _ = make_router(comportamento, catalog=_catalogo_um_gateway_gordo(),
+                            max_attempts=8)
+    turno = router.generate(system="s", history=[], tools=TOOLS)
+
+    assert turno.wants_tools, "tinha que ter chegado na rota saudavel"
+    assert router.last_route == "S/s1", f"parou em {router.last_route}"
+
+
+def test_gateway_limitado_nao_paga_latencia_por_irma_que_vai_falhar():
+    """As irmas do gateway limitado nao podem ser tentadas uma a uma: a resposta
+    ja se sabe qual e. Aqui nenhuma delas deve ter sido chamada."""
+    comportamento = {f"g{i}": AIError("429", user_message="limitou") for i in range(9)}
+    comportamento["s1"] = "ok"
+
+    router, clientes = make_router(comportamento, catalog=_catalogo_um_gateway_gordo(),
+                                   max_attempts=8)
+    router.generate(system="s", history=[], tools=TOOLS)
+
+    chamadas_no_gordo = sum(len(c.chamadas) for c in clientes.values() if c.gateway_id == "G")
+    assert chamadas_no_gordo == 1, \
+        f"pagou {chamadas_no_gordo} chamadas num gateway que ja tinha dito 429"
+
+
+def test_pool_de_um_gateway_unico_ainda_tenta_as_irmas():
+    """Adiar nao pode virar desistir. Se o unico gateway limitou, tentar as
+    irmas e melhor do que devolver erro - foi o que a primeira versao da correcao
+    quebrava."""
+    cat = [Gateway(id="U", base_url="https://u/v1", rpm=None, concurrency=2, models=[
+        ModelRoute(gateway="U", model="u1", weight=100),
+        ModelRoute(gateway="U", model="u2", weight=90),
+    ])]
+    router, _ = make_router({"u1": AIError("429", user_message="limitou"), "u2": "ok"},
+                            catalog=cat, max_attempts=8)
+    turno = router.generate(system="s", history=[], tools=TOOLS)
+
+    assert turno.wants_tools
+    assert router.last_route == "U/u2"

@@ -578,3 +578,26 @@ def test_partial_success_nao_e_success():
     b = EmbedBuilder()
     assert b.partial_success("t", "d").kind == EmbedKind.PARTIAL_SUCCESS
     assert b.partial_success("t", "d").kind != EmbedKind.SUCCESS
+
+
+def test_invisivel_que_a_modelo_emitir_nao_chega_no_discord():
+    """Medido em produção: a modelo devolveu o texto certo seguido de ~140 word
+    joiners (U+2060). `limpar()` roda dentro de `to_discord_embed()`, na última
+    etapa antes da API — então a regra permanente de "sem caracteres estranhos"
+    vale mesmo quando o lixo vem do modelo, não só quando vem de nós."""
+    from atlas.embeds import EmbedBuilder
+
+    sujo = "Canal **avisos-teste** criado dentro de FORTNITE." + "\u2060" * 140
+    d = EmbedBuilder().info("Atlas", sujo).to_discord_embed()
+
+    assert "\u2060" not in (d.description or "")
+    assert d.description == "Canal **avisos-teste** criado dentro de FORTNITE."
+
+
+def test_todos_os_invisiveis_conhecidos_sao_removidos_na_saida():
+    from atlas.embeds import EmbedBuilder
+
+    invisiveis = "\u200b\u200c\u200d\u2060\ufeff\u00ad\u180e"
+    d = EmbedBuilder().info("Atlas", f"texto{invisiveis}limpo").to_discord_embed()
+    for c in invisiveis:
+        assert c not in (d.description or ""), f"{hex(ord(c))} vazou"

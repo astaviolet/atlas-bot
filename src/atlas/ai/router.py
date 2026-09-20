@@ -132,6 +132,7 @@ class Router:
         *,
         now: float | None = None,
         prefere_rapida: bool = False,
+        excluir: Any = frozenset(),
     ) -> ModelRoute | None:
         """Melhor rota utilizavel agora, ou None se o pool inteiro estiver indisponivel."""
         now = self._clock() if now is None else now
@@ -139,6 +140,8 @@ class Router:
         melhor_score: tuple | None = None
 
         for rota in self.candidatos(needed):
+            if rota.key in excluir:
+                continue
             if not self.health.is_available(rota.key, now=now):
                 continue
             balde = self.bucket_for(self._gateway_of(rota) or Gateway(id=rota.gateway, base_url=""))
@@ -203,11 +206,31 @@ class Router:
 
         self.stats.request()
         tentadas: list[str] = []
+        # Irmãs de um gateway que devolveu 429. O limite do pool gratuito e por
+        # IP no GATEWAY, nao por modelo: se o kilo limitou, as outras 8 rotas
+        # dele vao falhar igual. Adiar (nao descartar) e o que importa - com
+        # max_attempts=8 o laco queimava o orcamento inteiro no mesmo gateway e
+        # nunca chegava em llm7/ovh, que estavam saudaveis. Medido: 12,3s e
+        # "Nenhum provedor respondeu" com 2 rotas boas no painel.
+        # Se nao sobrar mais nada, as adiadas voltam a valer.
+        adiadas: list[str] = []
         ultimo_erro: AIError | None = None
         now = self._clock()
 
         for tentativa in range(self.max_attempts):
-            rota = self.escolher(needed, now=now, prefere_rapida=rapida)
+            rota = self.escolher(
+                needed, now=now, prefere_rapida=rapida,
+                excluir=frozenset(tentadas) | frozenset(adiadas),
+            )
+            if rota is None and adiadas:
+                # So gateway limitado sobrou: melhor tentar as irmas do que
+                # desistir. E o caso de pool com um gateway unico.
+                log.info("so restam rotas de gateway limitado; tentando assim mesmo")
+                adiadas.clear()
+                rota = self.escolher(
+                    needed, now=now, prefere_rapida=rapida,
+                    excluir=frozenset(tentadas),
+                )
             if rota is None:
                 break
             if rota.key in tentadas:
@@ -241,8 +264,26 @@ class Router:
                 self.health.record_failure(
                     rota.key, reason=exc.user_message or str(exc), retryable=reintentavel
                 )
-                self.stats.failure(rota.key, kind=classify_error(exc))
+                tipo = classify_error(exc)
+                self.stats.failure(rota.key, kind=tipo)
                 ultimo_erro = exc
+                # CORRECAO DA CAUSA RAIZ DE "Nenhum provedor respondeu":
+                # o limite do pool gratuito e por IP no GATEWAY, nao por modelo.
+                # Quando o kilo devolve 429, as outras 8 rotas dele vao falhar
+                # igual - e com max_attempts=8 o laco queimava o orcamento
+                # inteiro no mesmo gateway sem nunca chegar em llm7/ovh, que
+                # estavam saudaveis. Medido: 12,3s e erro, com 2 rotas boas
+                # disponiveis no painel de saude.
+                #
+                # Marcar as irmas como ja tentadas nao e desistir delas: e parar
+                # de pagar latencia por uma resposta que ja se sabe qual e.
+                if tipo == "rate_limit":
+                    for g in self.catalog:
+                        if g.id != rota.gateway:
+                            continue
+                        for irma in g.models:
+                            if irma.key not in adiadas and irma.key not in tentadas:
+                                adiadas.append(irma.key)
                 log.warning(
                     "rota %s falhou (%s, %dms); procurando outra",
                     rota.key, type(exc).__name__, latencia,

@@ -14,6 +14,7 @@ from typing import Any
 
 from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
+from .conferencia import conferir_contagem
 from .config import Limits
 from .design_check import auditar_servidor
 from .ai.classificacao import classificar
@@ -401,7 +402,20 @@ class Agent:
                     session.add_assistant_text(response.text)
                 embeds = result_embeds(self.builder, all_results) if all_results else []
                 if response.text:
-                    resposta = self.builder.info("Atlas", response.text)
+                    # Conferencia factual antes de mostrar. Medido em producao:
+                    # "quantos canais e cargos tem?" com o indice real no prompt
+                    # (8 canais, 6 cargos) e a modelo respondeu "11 canais e 10
+                    # cargos" sem chamar NENHUMA tool. Prompt nao segura; o
+                    # codigo confere (spec 185 - resposta falsa e proibida).
+                    texto_final, divergencias = conferir_contagem(
+                        response.text, self.ctx.snapshot
+                    )
+                    if divergencias:
+                        log.warning(
+                            "resposta do modelo contradizia o servidor: %s",
+                            "; ".join(divergencias),
+                        )
+                    resposta = self.builder.info("Atlas", texto_final)
                     resposta.protegido = True
                     embeds.append(resposta)
                 if not embeds:
