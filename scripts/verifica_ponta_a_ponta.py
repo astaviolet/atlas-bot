@@ -17,11 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import sys
 import urllib.request
 
-import discord
 from dotenv import load_dotenv
 
 from atlas.audit import AuditLog
@@ -102,7 +100,6 @@ async def main() -> int:
     await bot.start(token)
 
     depois = _ultimas_mensagens(CANAL_PADRAO, token, 20)
-    novas = [m for m in depois if m["id"] not in antes and m["author"].get("id") != antes]
     do_bot = [m for m in depois if m["id"] not in antes and m.get("embeds")]
 
     print(f"\nmensagens novas do bot no canal: {len(do_bot)}")
