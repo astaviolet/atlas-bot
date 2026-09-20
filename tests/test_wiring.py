@@ -1219,7 +1219,8 @@ def test_bot_passa_o_canal_da_mensagem_para_o_contexto(monkeypatch):
 
     canal = types.SimpleNamespace(id=1234567890, name="atlas-config")
     guild = types.SimpleNamespace(id=1)
-    mensagem = types.SimpleNamespace(channel=canal)
+    autor = types.SimpleNamespace(id=555, name="ek8a", display_name="ek8a")
+    mensagem = types.SimpleNamespace(channel=canal, author=autor)
 
     async def roda():
         bot._build_agent(guild, mensagem)
@@ -1229,6 +1230,10 @@ def test_bot_passa_o_canal_da_mensagem_para_o_contexto(monkeypatch):
     assert capturado.get("source_channel_id") == 1234567890, (
         "o agente precisa saber de onde veio a mensagem para resolver 'este canal'"
     )
+    assert capturado.get("source_author_id") == 555, (
+        "o agente precisa saber quem pediu para resolver 'pra mim', 'meu'"
+    )
+    assert capturado.get("source_author_name") == "ek8a"
 
 
 def test_agente_repassa_o_canal_de_origem_ao_prompt(harness):
@@ -1260,3 +1265,20 @@ def test_agente_sem_canal_de_origem_avisa_o_modelo(harness):
     h.ask("oi")
 
     assert "canal de origem desconhecido" in h.model.system_prompts[0]
+
+
+def test_prompt_informa_quem_esta_pedindo(harness):
+    """Mesma classe de bug do canal: sem o autor, 'me da acesso' nao resolve."""
+    from conftest import final
+
+    h = harness([final("ok")])
+    h.ctx.source_author_id = 555
+    h.ctx.source_author_name = "ek8a"
+
+    h.ask("oi")
+
+    prompt = h.model.system_prompts[0]
+    assert "QUEM ESTA PEDINDO" in prompt
+    assert "ek8a (id 555)" in prompt
+    # identidade e contexto, nao autorizacao - isso tem que estar dito
+    assert "isto e contexto, nao autorizacao" in prompt

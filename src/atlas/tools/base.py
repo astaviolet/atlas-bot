@@ -31,6 +31,11 @@ class ToolContext:
     #: nao tem como resolver "este canal", "aqui", "esse" - e fica pedindo o id
     #: de volta ou, pior, chutando um canal errado.
     source_channel_id: int | None = None
+    #: Quem pediu. Tambem vem do contexto real do Discord. E CONTEXTO, nao
+    #: autorizacao: saber o id de quem falou ajuda a resolver "me da acesso",
+    #: mas a checagem de permissao continua acontecendo no codigo.
+    source_author_id: int | None = None
+    source_author_name: str | None = None
 
     def refresh(self) -> GuildSnapshot:
         self.snapshot = self.gateway.snapshot()

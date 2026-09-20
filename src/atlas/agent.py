@@ -189,6 +189,8 @@ class Agent:
         system = build_system_prompt(
             self.ctx.snapshot, self.registry, self.policy,
             source_channel_id=self.ctx.source_channel_id,
+            source_author_id=self.ctx.source_author_id,
+            source_author_name=self.ctx.source_author_name,
         )
         declarations = self.registry.declarations()
 

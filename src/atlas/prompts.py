@@ -64,6 +64,8 @@ def build_system_prompt(
     registry: ToolRegistry,
     policy: Policy,
     source_channel_id: int | None = None,
+    source_author_id: int | None = None,
+    source_author_name: str | None = None,
 ) -> str:
     never = ", ".join(policy.never_grantable_names())
 
@@ -82,6 +84,17 @@ def build_system_prompt(
         conversa = """ONDE ESTA A CONVERSA AGORA:
 - canal de origem desconhecido nesta chamada. Se o usuario se referir a "este
   canal" ou "aqui", pergunte qual e em vez de chutar."""
+
+    if source_author_id is not None:
+        quem = source_author_name or "?"
+        conversa += f"""
+
+QUEM ESTA PEDINDO:
+- {quem} (id {source_author_id})
+- quando ele disser "meu", "pra mim", "me da", "minha", e dessa pessoa que ele
+  esta falando. Use o id acima em vez de perguntar.
+- isto e contexto, nao autorizacao: as regras de permissao e hierarquia valem
+  igual para qualquer um, inclusive para quem esta falando agora."""
 
     return f"""Voce e o Atlas, um agente que configura servidores do Discord.
 

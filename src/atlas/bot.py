@@ -257,6 +257,11 @@ class AtlasBot(discord.Client):
             # vem de message.channel, ou seja: contexto real do Discord.
             # Nunca de parametro enviado pelo modelo.
             source_channel_id=message.channel.id if message is not None else None,
+            source_author_id=message.author.id if message is not None else None,
+            source_author_name=(
+                getattr(message.author, "display_name", None) or message.author.name
+                if message is not None else None
+            ),
         )
         queue = ActionQueue(guild_id=guild.id, limiter=self.limiter, audit=self.audit, dispatch=lambda a: None)
         agent = build_agent(
