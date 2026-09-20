@@ -993,10 +993,12 @@ def test_prompt_orienta_a_nao_duplicar_o_que_ja_existe():
     # garante que a orientacao esta mesmo ali.
     assert "Nao crie o que ja existe" in texto, \
         "o prompt precisa mandar conferir antes de criar"
-    # get_server_info ja traz canais, categorias e cargos. Mandar chamar os
-    # tres depois fazia o modelo pagar ~730 tokens por dado duplicado.
-    assert "repetir" in texto and "nao faca" in texto, \
-        "o prompt tem que proibir a releitura redundante"
+    # A lista de ids vai no prompt. Sem isso todo pedido gastava uma volta de
+    # IA (~1,5s) e ~700 tokens so para descobrir o id de um canal.
+    assert "JA ESTAO na lista acima" in texto, \
+        "o prompt tem que dizer que os ids ja estao disponiveis"
+    assert "sem chamar get_server_info" in texto, \
+        "o prompt tem que proibir a leitura que virou desnecessaria"
     assert "Nao crie o que ja existe" in texto, \
         "o prompt precisa proibir duplicata explicitamente"
     assert "so voce evita" in texto, \
@@ -1345,3 +1347,58 @@ def test_verificar_exclusao_de_canal_usa_retry(harness):
     h.gateway.snapshot = snapshot_atrasado
 
     assert _verify_delete_channel(h.ctx, {"channel_id": alvo.id}, None) is True
+
+
+def test_indice_lista_os_ids_reais_do_servidor():
+    from atlas.prompts import indice_do_servidor
+    from atlas.testing.fake_gateway import FakeGateway
+
+    gw = FakeGateway(); gw.seed_gamer_layout()
+    snap = gw.snapshot()
+    indice = indice_do_servidor(snap)
+
+    alvo = [c for c in snap.channels if not c.is_category][0]
+    assert f"{alvo.name}={alvo.id}" in indice
+    assert f"{snap.roles[0].name}={snap.roles[0].id}" in indice
+
+
+def test_indice_tem_teto_para_servidor_grande():
+    """Sem teto, um servidor com 500 canais inflaria o prompt de toda chamada."""
+    from atlas.prompts import indice_do_servidor
+    from atlas.testing.fake_gateway import FakeGateway
+
+    gw = FakeGateway()
+    for i in range(150):
+        gw.create_channel(name=f"canal-{i}", type=0)   # 0 = texto
+    indice = indice_do_servidor(gw.snapshot(), teto=80)
+
+    assert "mais)" in indice, "tem que avisar que a lista foi truncada"
+    assert len(indice) < 4000, f"indice grande demais: {len(indice)}"
+
+
+# ---------------------------------------------------- prazo total do pedido
+def test_agente_para_quando_estoura_o_prazo(harness):
+    """Pior caso era 25 turnos x 60s = 25 minutos sem resposta nenhuma."""
+    from atlas.config import Limits
+    from conftest import turn
+
+    h = harness([turn(("get_server_info", {}))] * 5, limits=Limits(deadline_seconds=0.0))
+
+    out = h.ask("faz alguma coisa")
+
+    assert out.embeds, "tem que responder alguma coisa, nao ficar em silencio"
+    texto = " ".join(e.description for e in out.embeds)
+    assert "Demorou demais" in texto
+    # prazo 0 corta antes da primeira chamada: nao adianta comecar algo que
+    # nao vai dar tempo de terminar
+    assert h.model.system_prompts == [], "com prazo zero nao pode gastar volta nenhuma"
+
+
+def test_prazo_generoso_nao_atrapalha_pedido_normal(harness):
+    from atlas.config import Limits
+    from conftest import final, turn
+
+    h = harness([turn(("get_server_info", {})), final("pronto")],
+                limits=Limits(deadline_seconds=90.0))
+    out = h.ask("oi")
+    assert any("pronto" in e.description for e in out.embeds)

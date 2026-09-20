@@ -11,6 +11,8 @@ toda regra de seguranca continua presente, so que com menos palavra.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .models import GuildSnapshot
 from .policy import Policy
 from .tools.base import ToolRegistry
@@ -31,10 +33,13 @@ FORBIDDEN = """VOCE NUNCA:
 Sua area e a ESTRUTURA: canais, categorias, cargos, permissoes, info do servidor."""
 
 METHOD = """COMO TRABALHAR:
-1. get_server_info JA devolve canais, categorias e cargos juntos. Chame ele e
-   pronto. Chamar get_channels, get_categories ou get_roles depois e repetir
-   dado que voce ja tem - nao faca. Use get_channel/get_role so para detalhar
-   um item especifico. Nao adivinhe IDs.
+1. Os ids de canais, categorias e cargos JA ESTAO na lista acima. Use direto,
+   sem chamar get_server_info, get_channels, get_categories ou get_roles - isso
+   so gasta tempo. Chame get_channel ou get_role apenas quando precisar de um
+   detalhe que a lista nao tem (permissoes, topico). VAO DIRETO PARA A ACAO.
+   Para APAGAR, MOVER ou RENOMEAR, o id da lista ja basta: nao chame
+   get_channel antes "para confirmar". Contar canais ou cargos tambem nao
+   precisa de chamada nenhuma - a lista esta ai.
 2. Nao crie o que ja existe: se ja ha canal ou categoria com o nome pedido, use
    o existente e diga isso. O Discord aceita nome repetido; so voce evita.
 3. RESOLVA REFERENCIA INDIRECTA SOZINHO. "o outro", "o primeiro", "esse que
@@ -57,6 +62,35 @@ ser excluido pois e o cargo padrao. Se quiser, posso apagar mais."
 Certo: "Apaguei Membro Ativo e caps-renomeado. @everyone nao da para excluir."
 Ha um limitador que corta acima de 220 caracteres: se escrever demais, o final
 some."""
+
+
+def indice_do_servidor(snapshot: GuildSnapshot, *, teto: int = 80) -> str:
+    """Lista compacta de ids, para o modelo nao precisar gastar uma volta de IA.
+
+    Sem isto, todo pedido comeca com get_server_info so para descobrir o id de
+    um canal - uma chamada de IA a mais (1,5s) e ~700 tokens de resultado.
+    O indice custa ~115 tokens e vai junto com o prompt.
+
+    Tem teto: em servidor com centenas de canais a lista nao pode crescer sem
+    limite. Passou do teto, mostra os primeiros e avisa que ha mais.
+    """
+    canais = [c for c in snapshot.channels if not c.is_category]
+    categorias = [c for c in snapshot.channels if c.is_category]
+
+    def fmt(itens: Any) -> tuple[str, str]:
+        nomes = [f"{getattr(i, 'name', '?')}={getattr(i, 'id', '?')}" for i in itens[:teto]]
+        resto = f" (+{len(itens) - teto} mais)" if len(itens) > teto else ""
+        return " ".join(nomes), resto
+
+    cn, cr = fmt(canais)
+    kn, kr = fmt(categorias)
+    rn, rr = fmt(snapshot.roles)
+    return (
+        f"ESTRUTURA ATUAL (ids reais, use direto, nao chame get_server_info para isto):\n"
+        f"- canais: {cn}{cr}\n"
+        f"- categorias: {kn}{kr}\n"
+        f"- cargos: {rn}{rr}"
+    )
 
 
 def build_system_prompt(
@@ -104,6 +138,8 @@ na posicao {snapshot.bot_role.position if snapshot.bot_role else '?'}. Qualquer 
 parametro e ignorado pelo executor; nao tente.
 
 {conversa}
+
+{indice_do_servidor(snapshot)}
 
 {FORBIDDEN}
 

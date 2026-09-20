@@ -65,6 +65,10 @@ class Limits:
 
     # laco do agente
     max_turns: int = 25
+    #: Prazo total de um pedido, em segundos. Sem isto o pior caso era
+    #: max_turns x ai_timeout_seconds (25 x 60s = 25 minutos) e o usuario
+    #: ficava sem resposta. Passou do prazo, o agente entrega o que ja fez.
+    deadline_seconds: float = 90.0
 
     # texto
     max_embed_description: int = 1800

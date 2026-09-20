@@ -8,6 +8,7 @@ proibida.
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -196,8 +197,26 @@ class Agent:
 
         session.add_user(text)
         all_results: list[ActionResult] = []
+        comeco = time.monotonic()
 
         for turn in range(self.limits.max_turns):
+            # Prazo total. Sem isto o pior caso era max_turns x timeout da IA
+            # (25 x 60s = 25 minutos) e o usuario ficava olhando o bot "pensar"
+            # sem nunca receber resposta. Melhor entregar o que ja foi feito.
+            if time.monotonic() - comeco > self.limits.deadline_seconds:
+                log.warning(
+                    "prazo de %.0fs esgotado no turno %d", self.limits.deadline_seconds, turn
+                )
+                embeds = result_embeds(self.builder, all_results) if all_results else []
+                embeds.append(
+                    self.builder.warning(
+                        "",
+                        "Demorou demais e eu parei aqui. O que ja estava feito ficou "
+                        "feito; me diz se quer que eu continue.",
+                    )
+                )
+                return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+
             response = ensure_call_ids(
                 self.model.generate(
                     system=system,
