@@ -24,7 +24,7 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
 
     if ok and not failed:
         lines = [r.action.describe() for r in ok]
-        body = "\n".join(f"`✓` {line}" for line in lines)
+        body = "\n".join(f"- {line}" for line in lines)
         unverified = [r for r in ok if r.verified is False]
         kind = EmbedKind.WARNING if unverified else EmbedKind.SUCCESS
         embed = builder.build(
@@ -41,7 +41,7 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
         return embeds
 
     if ok:
-        body = "\n".join(f"`✓` {r.action.describe()}" for r in ok)
+        body = "\n".join(f"- {r.action.describe()}" for r in ok)
         embeds.append(builder.build(EmbedKind.RESULT, "Concluido em parte", body,
                                     fields=[EmbedField("Funcionaram", str(len(ok)), inline=True),
                                             EmbedField("Falharam", str(len(failed)), inline=True)]))

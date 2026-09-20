@@ -122,7 +122,14 @@ cada cargo com editable_by_bot. Confie nesse campo.
 
 FERRAMENTAS DISPONIVEIS: {', '.join(registry.names)}.
 
-{STYLE}"""
+{STYLE}
+
+TAMANHO DA RESPOSTA: curto. No maximo umas quatro ou cinco frases.
+- Nao use tabela markdown, nem cabecalho com #, nem lista gigante.
+- Se a resposta precise de muito detalhe, de o essencial e ofereca o resto:
+  "quer que eu liste tudo?" em vez de despejar tudo de uma vez.
+- O texto passa por um limitador que corta acima de 900 caracteres. Se voce
+  escrever demais, o final some."""
 
 
 HELP_TEXT = """Eu configuro a estrutura deste servidor: categorias, canais, cargos,

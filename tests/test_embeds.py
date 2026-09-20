@@ -180,3 +180,91 @@ def test_confirmacao_tem_resumo_e_contagem(harness):
     assert embed.kind == EmbedKind.CONFIRM
     assert "3" in embed.description, "a contagem precisa aparecer"
     assert "sim" in embed.description.lower(), "precisa dizer como confirmar"
+
+
+# ------------------------------------------------- limpeza do texto de saida
+def test_limpar_remove_caracteres_invisiveis_e_exoticos():
+    """Texto REAL devolvido pelo modelo, pego no canal do usuario."""
+    from atlas.texto import limpar
+
+    sujo = (
+        "O canal **#atlas-config** (ID\u202f1551015583712026768) possui tres "
+        "sobrescritas:\u00a0uma. Ele pode conectar\u2011se a canais de voz. "
+        "Exemplos: \u201cModerador\u201d, \u2018VIP\u201d\u2026 e \u2014 mais nada."
+    )
+    limpo = limpar(sujo)
+
+    assert "\u202f" not in limpo, "espaco invisivel tem que sair"
+    assert "\u2011" not in limpo, "hifen invisivel tem que sair"
+    assert "\u00a0" not in limpo
+    assert "\u201c" not in limpo and "\u201d" not in limpo and "\u2018" not in limpo
+    assert "\u2026" not in limpo and "\u2014" not in limpo
+    assert "ID 1551015583712026768" in limpo
+    assert 'Exemplos: "Moderador", \'VIP"... e - mais nada.' in limpo
+
+
+def test_limpar_tira_tabela_markdown():
+    from atlas.texto import limpar
+
+    tabela = (
+        "| Alvo | Tipo | Permissoes |\n"
+        "|------|------|------------|\n"
+        "| 1546763083005825084 | cargo | CONNECT negado |\n"
+        "| 1550239353802858626 | membro | SPEAK permitido |\n"
+    )
+    limpo = limpar(tabela)
+
+    assert "|" not in limpo, "tabela nao pode sobrar em embed"
+    assert "---" not in limpo
+    assert "Alvo: 1546763083005825084" in limpo
+    assert "Tipo: cargo" in limpo
+    assert "Permissoes: CONNECT negado" in limpo
+
+
+def test_limpar_tira_cabecalho_e_backtick():
+    from atlas.texto import limpar
+
+    limpo = limpar("### Permissoes herdadas\nUse `#5865F2` e veja `get_roles`.")
+    assert "#" not in limpo.replace("#5865F2", "") or "###" not in limpo
+    assert "`" not in limpo
+    assert "Permissoes herdadas" in limpo
+
+
+def test_limpar_corta_texto_grande_em_frase():
+    from atlas.texto import MAX_DESCRICAO, limpar
+
+    parede = "Frase numero %d com algum conteudo para ocupar espaco." % 0
+    parede = "\n\n".join(
+        f"Frase numero {i} com algum conteudo para ocupar espaco de verdade."
+        for i in range(60)
+    )
+    limpo = limpar(parede)
+
+    assert len(limpo) <= MAX_DESCRICAO + 10
+    assert limpo.endswith("(...)"), "tem que sinalizar que cortou"
+    assert not limpo.rstrip("(. ").endswith(" "), "nao pode cortar no meio da palavra"
+
+
+def test_limpar_remove_check_e_espaco_de_largura_zero():
+    from atlas.texto import limpar
+
+    limpo = limpar("`\u2713` get_roles\n`\u2713` criar cargo\u200b @Membro")
+    assert "\u2713" not in limpo
+    assert "\u200b" not in limpo
+    assert "`" not in limpo
+    assert "get_roles" in limpo
+
+
+def test_embed_aplica_a_limpeza_na_saida_final():
+    """A garantia tem que estar na saida, nao no prompt: o modelo nao obedece."""
+    from atlas.embeds import EmbedBuilder
+
+    embed = EmbedBuilder().info(
+        "x", "O canal (ID\u202f123) tem `tres` itens\u2026 ### titulo\n| a | b |\n|---|---|\n| 1 | 2 |"
+    )
+    d = embed.to_discord_embed()
+
+    assert "\u202f" not in d.description
+    assert "\u2026" not in d.description
+    assert "`" not in d.description
+    assert "|" not in d.description

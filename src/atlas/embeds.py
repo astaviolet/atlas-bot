@@ -71,16 +71,23 @@ class EmbedSpec:
     def to_discord_embed(self) -> Any:
         import discord  # import tardio: nao obriga Discord em testes
 
+        from .texto import limpar
+
         # Sem titulo e sem rodape, de proposito: o usuario le o texto, e so.
         # Titulos como "ℹ️ Atlas" e rodapes como "informacao" eram ruido - nao
         # acrescentavam nada que a propria mensagem ja nao dissesse. A cor na
         # lateral continua diferenciando sucesso de erro, sem gastar texto.
+        #
+        # limpar() roda aqui, na ultima etapa antes da API. Nao e decorativo:
+        # o modelo ja devolveu espaco invisivel, hifen invisivel, aspas curvas,
+        # check, tabela markdown e 1700 caracteres. Pedir "seja breve" no
+        # prompt nao garante nada; isto garante.
         embed = discord.Embed(
-            description=self.description[:4096] or None,
+            description=limpar(self.description)[:4096] or None,
             color=self.color,
         )
         for f in self.fields[:25]:
-            embed.add_field(name=f.name[:256], value=f.value[:1024], inline=f.inline)
+            embed.add_field(name=limpar(f.name)[:256], value=limpar(f.value)[:1024], inline=f.inline)
         return embed
 
     def to_plain(self) -> str:
