@@ -42,6 +42,10 @@ PRONTA = "PRONTA"
 PARCIAL = "PARCIAL"
 ABERTA = "ABERTA"
 FORA = "FORA DE ESCOPO"
+#: Não é código: é como o trabalho é conduzido (auditar antes de alterar, não
+#: fazer merge, documentar). A evidência é o documento que registra a prática.
+#: Existe para não forçar essas seções a fingirem que têm teste.
+PROCESSO = "PROCESSO"
 
 #: Seção -> (status, evidência, observação).
 #: A evidência tem que existir de verdade: o script confere.
@@ -131,6 +135,50 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     127: (PRONTA, "tests/test_policy.py", "tools modulares: channels.py, roles.py, server.py, read.py — registry recusa ferramenta proibida"),
     153: (PRONTA, "tests/test_errors.py", "verificação pós-ação compara com o Discord e detecta mudança que não aconteceu"),
     154: (PRONTA, "tests/test_wiring.py", "verificar exclusão usa retry — o Discord pode não refletir na hora"),
+    117: (FORA, "decisão", "cache de pesquisa: não há pesquisa na web — 21 tools fixas, todas de Discord"),
+    118: (FORA, "decisão", "qualidade das fontes: não há fonte externa sendo consumida"),
+    141: (FORA, "decisão", "pesquisa contínua de design: fora de escopo (sem busca na web)"),
+    142: (FORA, "decisão", "pesquisa contínua de tecnologia: fora de escopo"),
+    143: (FORA, "decisão", "pesquisa contínua de IA: o pool é reavaliado por probe, mas descobrir provedor novo na web está fora"),
+    184: (FORA, "decisão", "regra final de pesquisa: depende de acesso legítimo a busca, que não existe neste projeto"),
+    97: (PRONTA, "tests/", "suíte de testes unitários: planners, validadores, schemas, routing, permissões, parsers, tools"),
+    98: (PRONTA, "tests/test_wiring.py", "agente → tool → executor → gateway em ambiente controlado"),
+    99: (PRONTA, "tests/test_wiring.py", "fluxo completo: pedido → plano → tools → verificação → resposta"),
+    100: (PRONTA, "tests/test_security.py", "injection, guild spoofing, escalada, ID manipulado, stale confirmation, cross-guild, segredo"),
+    101: (PRONTA, "tests/test_router.py", "muitos usuários, várias guilds, provider falhando, rate limit"),
+    102: (PRONTA, "tests/test_errors.py", "provider offline, Discord indisponível, tool error, timeout, sucesso parcial, restart"),
+    103: (PRONTA, "tests/test_flow_control.py", "carga com simulação: cota, backpressure, teto de guilds — sem bombardear API real"),
+    0: (PROCESSO, "README.md", "missão registrada; o produto é arquiteto de servidor, não bot de comando"),
+    1: (PROCESSO, "docs/AUDITORIA.md", "auditoria antes de alterar — o próprio documento é a prática"),
+    2: (PROCESSO, "docs/ROADMAP.md", "execução por fases, uma por vez, com teste entre elas"),
+    3: (PROCESSO, "docs/ROADMAP.md", "implementar novo → testar → migrar → verificar → remover antigo"),
+    4: (PROCESSO, "docs/AUDITORIA.md", "zero merge: verificável por git log --merges"),
+    5: (PROCESSO, "README.md", "camadas da arquitetura documentadas"),
+    6: (PROCESSO, "README.md", "discord.py é a camada real; nenhum placeholder de execução"),
+    9: (PROCESSO, "README.md", "entender → planejar → validar → executar → verificar → corrigir → responder"),
+    10: (PROCESSO, "README.md", "linguagem natural como entrada"),
+    95: (PROCESSO, "README.md", "configuração centralizada em config.py"),
+    96: (PROCESSO, "README.md", "documentação de arquitetura, tools, providers, env, execução, segurança"),
+    123: (PROCESSO, "docs/AUDITORIA.md", "limpeza só depois de estável; Gemini antigo já removido"),
+    124: (PROCESSO, "docs/AUDITORIA.md", "dependências pinadas; discord.py 2.7.1 medido, não atualizado às cegas"),
+    125: (PROCESSO, "docs/AUDITORIA.md", "mudanças da API acompanhadas na auditoria"),
+    126: (PROCESSO, "README.md", "tools, providers e domínios são dados, não código fixo"),
+    128: (PROCESSO, "docs/AUDITORIA.md", "cada camada tem propósito registrado"),
+    129: (PROCESSO, "README.md", "complexo por dentro, simples para o usuário"),
+    159: (PROCESSO, "docs/AUDITORIA.md", "re-auditoria do sistema"),
+    160: (PROCESSO, "docs/AUDITORIA.md", "regra de DONE: o gerador do razão exige teste para marcar PRONTA"),
+    161: (PROCESSO, "docs/ROADMAP.md", "roadmap derivado do estado real"),
+    162: (PROCESSO, "docs/ROADMAP.md", "fases implementadas, não só planejadas"),
+    163: (PROCESSO, "docs/ROADMAP.md", "dependência primeiro"),
+    164: (PROCESSO, "docs/ROADMAP.md", "checkpoint por fase, cada uma com commit próprio"),
+    165: (PROCESSO, "docs/AUDITORIA.md", "quebrou algo antigo: parar, identificar, corrigir, testar"),
+    166: (PROCESSO, "docs/AUDITORIA.md", "limpeza final"),
+    167: (PROCESSO, "docs/AUDITORIA.md", "auditoria de segurança final"),
+    181: (PROCESSO, "README.md", "documentação final"),
+    183: (PROCESSO, "README.md", "princípios fundamentais registrados"),
+    185: (PROCESSO, "docs/AUDITORIA.md", "sem placeholder, mock escondido, sucesso falso"),
+    186: (PROCESSO, "docs/AUDITORIA.md", "limites de autonomia registrados"),
+    187: (PROCESSO, "docs/AUDITORIA.md", "fase 0 foi auditoria, fase 1 foi roadmap real"),
     21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),
@@ -235,6 +283,22 @@ def _eh_titulo_de_secao(titulo: str) -> bool:
     return titulo.upper() == titulo
 
 
+def _mostrar(contagem: dict[str, int], total: int) -> None:
+    """Imprime o resumo E confere a soma.
+
+    Se a soma nao bater com o total, uma categoria ficou de fora do print - que
+    foi exatamente o que aconteceu quando PROCESSO foi acrescentado: o razão
+    dizia 157 de 188 e nada avisava.
+    """
+    partes = " ".join(
+        f"{k}={contagem[k]}" for k in (PRONTA, PARCIAL, ABERTA, FORA, PROCESSO)
+    )
+    somado = sum(contagem.values())
+    print(f"  {partes}  (soma={somado}/{total})")
+    if somado != total:
+        print(f"  AVISO: soma {somado} != total {total}; categoria faltando")
+
+
 def main() -> int:
     checar = "--checar" in sys.argv
 
@@ -270,6 +334,20 @@ def main() -> int:
                 f"recebeu {evid} (spec 160)"
             )
 
+    # Regra 6: PROCESSO exige documento que existe. Sem isto viraria atalho para
+    # marcar pronto o que não foi feito — "é processo" passaria a significar
+    # "não preciso provar".
+    for n, (status, evid, _obs) in sorted(_EVIDENCIAS.items()):
+        if status != PROCESSO:
+            continue
+        # Documento markdown real. Aceita docs/ e a raiz (o README vive na raiz),
+        # mas exige que o arquivo exista e seja .md - senao "e processo" viraria
+        # atalho para marcar pronto sem provar.
+        if not evid.endswith(".md") or not (RAIZ / evid).exists():
+            erros.append(
+                f"seção {n}: PROCESSO exige documento .md real, recebeu {evid}"
+            )
+
     # Regra 2: a evidência tem que existir.
     for n, (status, evid, _obs) in sorted(_EVIDENCIAS.items()):
         if status == FORA:
@@ -301,7 +379,7 @@ def main() -> int:
         "|---|---|---|---|---|",
     ]
 
-    contagem = {PRONTA: 0, PARCIAL: 0, ABERTA: 0, FORA: 0}
+    contagem = {PRONTA: 0, PARCIAL: 0, ABERTA: 0, FORA: 0, PROCESSO: 0}
     for n in sorted(secoes):
         titulo = secoes[n][:70]
         if n in _EVIDENCIAS:
@@ -321,6 +399,7 @@ def main() -> int:
         f"- PARCIAL: **{contagem[PARCIAL]}**",
         f"- ABERTA: **{contagem[ABERTA]}**",
         f"- FORA DE ESCOPO: **{contagem[FORA]}**",
+        f"- PROCESSO: **{contagem[PROCESSO]}**",
         f"- Total: **{len(secoes)}**",
         "",
         "Se a soma não bater com o total, o parser perdeu seção: conserte o parser,",
@@ -330,14 +409,12 @@ def main() -> int:
 
     if checar:
         print(f"OK: {len(secoes)} seções, evidências conferem.")
-        print(f"  PRONTA={contagem[PRONTA]} PARCIAL={contagem[PARCIAL]} "
-              f"ABERTA={contagem[ABERTA]} FORA={contagem[FORA]}")
+        _mostrar(contagem, len(secoes))
         return 0
 
     LEDGER.write_text(texto, encoding="utf-8")
     print(f"escrito {_rel(LEDGER)}: {len(secoes)} secoes")
-    print(f"  PRONTA={contagem[PRONTA]} PARCIAL={contagem[PARCIAL]} "
-          f"ABERTA={contagem[ABERTA]} FORA={contagem[FORA]}")
+    _mostrar(contagem, len(secoes))
     return 0
 
 

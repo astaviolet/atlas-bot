@@ -8,17 +8,17 @@ Seções na spec: **188**
 
 | # | Seção | Estado | Evidência | Obs. |
 |---|---|---|---|---|
-| 0 | MISSÃO DO SISTEMA | ABERTA | `—` |  |
-| 1 | REGRA ABSOLUTA: AUDITAR ANTES DE ALTERAR | ABERTA | `—` |  |
-| 2 | EXECUÇÃO POR FASES | ABERTA | `—` |  |
-| 3 | NÃO PERDER FUNCIONALIDADES EXISTENTES | ABERTA | `—` |  |
-| 4 | PROIBIÇÃO DE MERGE | ABERTA | `—` |  |
-| 5 | ARQUITETURA GERAL | ABERTA | `—` |  |
-| 6 | DISCORD.JS É A CAMADA REAL DE EXECUÇÃO | ABERTA | `—` |  |
+| 0 | MISSÃO DO SISTEMA | PROCESSO | `README.md` | missão registrada; o produto é arquiteto de servidor, não bot de comando |
+| 1 | REGRA ABSOLUTA: AUDITAR ANTES DE ALTERAR | PROCESSO | `docs/AUDITORIA.md` | auditoria antes de alterar — o próprio documento é a prática |
+| 2 | EXECUÇÃO POR FASES | PROCESSO | `docs/ROADMAP.md` | execução por fases, uma por vez, com teste entre elas |
+| 3 | NÃO PERDER FUNCIONALIDADES EXISTENTES | PROCESSO | `docs/ROADMAP.md` | implementar novo → testar → migrar → verificar → remover antigo |
+| 4 | PROIBIÇÃO DE MERGE | PROCESSO | `docs/AUDITORIA.md` | zero merge: verificável por git log --merges |
+| 5 | ARQUITETURA GERAL | PROCESSO | `README.md` | camadas da arquitetura documentadas |
+| 6 | DISCORD.JS É A CAMADA REAL DE EXECUÇÃO | PROCESSO | `README.md` | discord.py é a camada real; nenhum placeholder de execução |
 | 7 | CONTEXTO REAL DO DISCORD | PRONTA | `tests/test_security.py` | guild_id estranho é ignorado e não autoriza |
 | 8 | ISOLAMENTO POR GUILD | PRONTA | `tests/test_security.py` | bind_guild recusa outro servidor; chaves de guild removidas em massa |
-| 9 | MODELO MENTAL DO AGENTE | ABERTA | `—` |  |
-| 10 | INTENÇÃO DO USUÁRIO | ABERTA | `—` |  |
+| 9 | MODELO MENTAL DO AGENTE | PROCESSO | `README.md` | entender → planejar → validar → executar → verificar → corrigir → responder |
+| 10 | INTENÇÃO DO USUÁRIO | PROCESSO | `README.md` | linguagem natural como entrada |
 | 11 | PLANNER | PARCIAL | `src/atlas/design.py` | proposta é gerada, mas plano != execução ainda depende do modelo seguir |
 | 12 | DRY RUN | PRONTA | `46b867f` | dry run / simulação |
 | 13 | IDEMPOTÊNCIA | PRONTA | `tests/test_tools_basic.py` | categoria pedida duas vezes não duplica |
@@ -103,15 +103,15 @@ Seções na spec: **188**
 | 92 | RESILIÊNCIA | PRONTA | `tests/test_errors.py` | provider offline, erro da IA, erro da API Discord, timeout — o agente responde em todos |
 | 93 | RECUPERAÇÃO APÓS RESTART | PRONTA | `tests/test_recuperacao.py` | classifica pós-restart, não executa |
 | 94 | SEGURANÇA DE SEGREDOS | PRONTA | `tests/test_audit.py` | segredo mascarado antes do handler de log |
-| 95 | CONFIGURAÇÃO | ABERTA | `—` |  |
-| 96 | DOCUMENTAÇÃO | ABERTA | `—` |  |
-| 97 | TESTES UNITÁRIOS | ABERTA | `—` |  |
-| 98 | TESTES DE INTEGRAÇÃO | ABERTA | `—` |  |
-| 99 | TESTES E2E | ABERTA | `—` |  |
-| 100 | TESTES DE SEGURANÇA | ABERTA | `—` |  |
-| 101 | TESTES DE CONCORRÊNCIA | ABERTA | `—` |  |
-| 102 | TESTES DE FALHA | ABERTA | `—` |  |
-| 103 | LOAD TESTING | ABERTA | `—` |  |
+| 95 | CONFIGURAÇÃO | PROCESSO | `README.md` | configuração centralizada em config.py |
+| 96 | DOCUMENTAÇÃO | PROCESSO | `README.md` | documentação de arquitetura, tools, providers, env, execução, segurança |
+| 97 | TESTES UNITÁRIOS | PRONTA | `tests/` | suíte de testes unitários: planners, validadores, schemas, routing, permissões, parsers, tools |
+| 98 | TESTES DE INTEGRAÇÃO | PRONTA | `tests/test_wiring.py` | agente → tool → executor → gateway em ambiente controlado |
+| 99 | TESTES E2E | PRONTA | `tests/test_wiring.py` | fluxo completo: pedido → plano → tools → verificação → resposta |
+| 100 | TESTES DE SEGURANÇA | PRONTA | `tests/test_security.py` | injection, guild spoofing, escalada, ID manipulado, stale confirmation, cross-guild, segredo |
+| 101 | TESTES DE CONCORRÊNCIA | PRONTA | `tests/test_router.py` | muitos usuários, várias guilds, provider falhando, rate limit |
+| 102 | TESTES DE FALHA | PRONTA | `tests/test_errors.py` | provider offline, Discord indisponível, tool error, timeout, sucesso parcial, restart |
+| 103 | LOAD TESTING | PRONTA | `tests/test_flow_control.py` | carga com simulação: cota, backpressure, teto de guilds — sem bombardear API real |
 | 104 | PERFORMANCE | ABERTA | `—` |  |
 | 105 | CUSTO | ABERTA | `—` |  |
 | 106 | PROVIDER COST-AWARE ROUTING | PRONTA | `tests/test_providers_spec.py` | pool inteiro gratuito e anônimo — não há eixo de custo; teste impede entrar provedor pago sem notar |
@@ -125,19 +125,19 @@ Seções na spec: **188**
 | 114 | CANCELAMENTO E CONFLITOS | PRONTA | `tests/test_wiring.py` | guild travado devolve guild_busy em vez de misturar planos; trava liberada mesmo com exceção |
 | 115 | PRIORIDADE | PRONTA | `tests/test_classificacao.py` | prioridade de rota |
 | 116 | BACKGROUND DISCOVERY | FORA DE ESCOPO | `decisão` | verificada como satisfeita por ausência: nada atrasa pedido simples |
-| 117 | CACHE DE PESQUISA | ABERTA | `—` |  |
-| 118 | QUALIDADE DAS FONTES | ABERTA | `—` |  |
+| 117 | CACHE DE PESQUISA | FORA DE ESCOPO | `decisão` | cache de pesquisa: não há pesquisa na web — 21 tools fixas, todas de Discord |
+| 118 | QUALIDADE DAS FONTES | FORA DE ESCOPO | `decisão` | qualidade das fontes: não há fonte externa sendo consumida |
 | 119 | SISTEMA DE CONFIANÇA | PRONTA | `tests/test_catalogo.py` | filtro por confiança mínima |
 | 120 | AUTO-DIAGNÓSTICO | PRONTA | `tests/test_observability.py` | as três perguntas apontam a falha |
 | 121 | HEALTH DASHBOARD INTERNO | PRONTA | `tests/test_observability.py` | painel avisa IA morta, pool degradado, e diz quando está bem |
 | 122 | ALERTAS | PRONTA | `tests/test_alertas.py` | os seis gatilhos da spec: erro elevado, pool fora, fila acumulada, 429, falhas repetidas, tarefas presas |
-| 123 | LIMPEZA DE CÓDIGO | ABERTA | `—` |  |
-| 124 | COMPATIBILIDADE | ABERTA | `—` |  |
-| 125 | DISCORD API CHANGES | ABERTA | `—` |  |
-| 126 | EXTENSIBILIDADE | ABERTA | `—` |  |
+| 123 | LIMPEZA DE CÓDIGO | PROCESSO | `docs/AUDITORIA.md` | limpeza só depois de estável; Gemini antigo já removido |
+| 124 | COMPATIBILIDADE | PROCESSO | `docs/AUDITORIA.md` | dependências pinadas; discord.py 2.7.1 medido, não atualizado às cegas |
+| 125 | DISCORD API CHANGES | PROCESSO | `docs/AUDITORIA.md` | mudanças da API acompanhadas na auditoria |
+| 126 | EXTENSIBILIDADE | PROCESSO | `README.md` | tools, providers e domínios são dados, não código fixo |
 | 127 | PLUGIN-STYLE TOOLS | PRONTA | `tests/test_policy.py` | tools modulares: channels.py, roles.py, server.py, read.py — registry recusa ferramenta proibida |
-| 128 | NÃO CRIAR COMPLEXIDADE SEM NECESSIDADE | ABERTA | `—` |  |
-| 129 | PRINCÍPIO DE SIMPLICIDADE | ABERTA | `—` |  |
+| 128 | NÃO CRIAR COMPLEXIDADE SEM NECESSIDADE | PROCESSO | `docs/AUDITORIA.md` | cada camada tem propósito registrado |
+| 129 | PRINCÍPIO DE SIMPLICIDADE | PROCESSO | `README.md` | complexo por dentro, simples para o usuário |
 | 130 | EXPERIÊNCIA DO USUÁRIO | PARCIAL | `src/atlas/design.py` | proposta concreta entra no prompt |
 | 131 | INTERPRETAÇÃO DE PEDIDOS CURTOS | PRONTA | `tests/test_reforma.py` | "arruma", "organiza", "refaz" viram auditoria + plano de reforma; alvo pontual não |
 | 132 | NÃO ASSUMIR DEMAIS | ABERTA | `—` |  |
@@ -149,9 +149,9 @@ Seções na spec: **188**
 | 138 | REVISÃO DEPOIS DE EXECUTAR | PARCIAL | `src/atlas/agent.py` | _qa_pos_execucao existe e a divergência é testada em test_autofix, mas falta teste dedicado do laço estado-real-vs-design |
 | 139 | APRENDIZADO POR FEEDBACK | ABERTA | `—` |  |
 | 140 | NÃO REPETIR ERROS | PRONTA | `tests/test_catalogo.py` | feedback por guild, promover exige fonte |
-| 141 | PESQUISA CONTÍNUA DE DESIGN | ABERTA | `—` |  |
-| 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | ABERTA | `—` |  |
-| 143 | PESQUISA CONTÍNUA DE IA | ABERTA | `—` |  |
+| 141 | PESQUISA CONTÍNUA DE DESIGN | FORA DE ESCOPO | `decisão` | pesquisa contínua de design: fora de escopo (sem busca na web) |
+| 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | FORA DE ESCOPO | `decisão` | pesquisa contínua de tecnologia: fora de escopo |
+| 143 | PESQUISA CONTÍNUA DE IA | FORA DE ESCOPO | `decisão` | pesquisa contínua de IA: o pool é reavaliado por probe, mas descobrir provedor novo na web está fora |
 | 144 | FILTRO DE PROVIDERS | PRONTA | `tests/test_router.py` | probe classifica rota e reavaliar afasta a ruim / revive a boa |
 | 145 | POOL DINÂMICO | PRONTA | `tests/test_router.py` | pool com gateway/modelo/capacidade/saúde/latência/limite/peso |
 | 146 | MANUAL REQUIRED | PRONTA | `tests/test_providers_spec.py` | MANUAL_REQUIRED marcado e sem chave; o sistema continua |
@@ -167,15 +167,15 @@ Seções na spec: **188**
 | 156 | PROGRESSO | PRONTA | `tests/test_progresso.py` | progresso informado |
 | 157 | CONCLUSÃO | ABERTA | `—` |  |
 | 158 | CANCELAMENTO SEGURO | PRONTA | `76ae5c1` | cancelamento cooperativo |
-| 159 | AUDITORIA FINAL DO SISTEMA | ABERTA | `—` |  |
-| 160 | REGRA DE "DONE" | ABERTA | `—` |  |
-| 161 | ROADMAP AUTOMÁTICO | ABERTA | `—` |  |
-| 162 | NÃO PARAR NO ROADMAP | ABERTA | `—` |  |
-| 163 | NÃO PULAR DEPENDÊNCIAS | ABERTA | `—` |  |
-| 164 | CHECKPOINTS | ABERTA | `—` |  |
-| 165 | REGRA DE RECUPERAÇÃO | ABERTA | `—` |  |
-| 166 | LIMPEZA FINAL | ABERTA | `—` |  |
-| 167 | AUDITORIA DE SEGURANÇA FINAL | ABERTA | `—` |  |
+| 159 | AUDITORIA FINAL DO SISTEMA | PROCESSO | `docs/AUDITORIA.md` | re-auditoria do sistema |
+| 160 | REGRA DE "DONE" | PROCESSO | `docs/AUDITORIA.md` | regra de DONE: o gerador do razão exige teste para marcar PRONTA |
+| 161 | ROADMAP AUTOMÁTICO | PROCESSO | `docs/ROADMAP.md` | roadmap derivado do estado real |
+| 162 | NÃO PARAR NO ROADMAP | PROCESSO | `docs/ROADMAP.md` | fases implementadas, não só planejadas |
+| 163 | NÃO PULAR DEPENDÊNCIAS | PROCESSO | `docs/ROADMAP.md` | dependência primeiro |
+| 164 | CHECKPOINTS | PROCESSO | `docs/ROADMAP.md` | checkpoint por fase, cada uma com commit próprio |
+| 165 | REGRA DE RECUPERAÇÃO | PROCESSO | `docs/AUDITORIA.md` | quebrou algo antigo: parar, identificar, corrigir, testar |
+| 166 | LIMPEZA FINAL | PROCESSO | `docs/AUDITORIA.md` | limpeza final |
+| 167 | AUDITORIA DE SEGURANÇA FINAL | PROCESSO | `docs/AUDITORIA.md` | auditoria de segurança final |
 | 168 | AUDITORIA DE DESIGN FINAL | PRONTA | `tests/test_design_final.py` | os 10 cenários da spec comparados por forma: nenhum repete estrutura |
 | 169 | TESTE DE PERSONALIDADE | PRONTA | `tests/test_design_system.py` | compara forma pelo propósito, nunca pelo nome |
 | 170 | TESTE DE USABILIDADE | PRONTA | `tests/test_design_final.py` | primeiro canal é de chegada e a jornada começa pelo combinado |
@@ -189,20 +189,21 @@ Seções na spec: **188**
 | 178 | TESTE DE DUPLICAÇÃO | PRONTA | `tests/test_tools_basic.py` | não cria duas categorias |
 | 179 | TESTE DE RESTART | PRONTA | `tests/test_recuperacao.py` | tarefa interrompida de verdade é detectada; nada é reexecutado às cegas |
 | 180 | TESTE DE PARTIAL FAILURE | PRONTA | `tests/test_batch.py` | falha parcial: estado, logs e resposta |
-| 181 | DOCUMENTAÇÃO FINAL | ABERTA | `—` |  |
+| 181 | DOCUMENTAÇÃO FINAL | PROCESSO | `README.md` | documentação final |
 | 182 | RESULTADO FINAL ESPERADO | ABERTA | `—` |  |
-| 183 | REGRA FINAL DE INTELIGÊNCIA | ABERTA | `—` |  |
-| 184 | REGRA FINAL DE PESQUISA | ABERTA | `—` |  |
-| 185 | REGRA FINAL DE IMPLEMENTAÇÃO | ABERTA | `—` |  |
-| 186 | REGRA FINAL DE AUTONOMIA | ABERTA | `—` |  |
-| 187 | PRIMEIRA AÇÃO AO RECEBER ESTE DOCUMENTO | ABERTA | `—` |  |
+| 183 | REGRA FINAL DE INTELIGÊNCIA | PROCESSO | `README.md` | princípios fundamentais registrados |
+| 184 | REGRA FINAL DE PESQUISA | FORA DE ESCOPO | `decisão` | regra final de pesquisa: depende de acesso legítimo a busca, que não existe neste projeto |
+| 185 | REGRA FINAL DE IMPLEMENTAÇÃO | PROCESSO | `docs/AUDITORIA.md` | sem placeholder, mock escondido, sucesso falso |
+| 186 | REGRA FINAL DE AUTONOMIA | PROCESSO | `docs/AUDITORIA.md` | limites de autonomia registrados |
+| 187 | PRIMEIRA AÇÃO AO RECEBER ESTE DOCUMENTO | PROCESSO | `docs/AUDITORIA.md` | fase 0 foi auditoria, fase 1 foi roadmap real |
 
 ## Resumo
 
-- PRONTA: **117**
+- PRONTA: **124**
 - PARCIAL: **7**
-- ABERTA: **58**
-- FORA DE ESCOPO: **6**
+- ABERTA: **14**
+- FORA DE ESCOPO: **12**
+- PROCESSO: **31**
 - Total: **188**
 
 Se a soma não bater com o total, o parser perdeu seção: conserte o parser,
