@@ -356,3 +356,80 @@ def test_cartao_v2_tambem_passa_pela_limpeza():
     assert "\u202f" not in texto
     assert "`" not in texto
     assert "CPA_DONE" not in texto
+
+
+# --------------------------------------------- nunca pingar ninguem de verdade
+def test_saida_nunca_pinga_everyone_ou_cargo():
+    from atlas.texto import limpar
+
+    limpo = limpar("Avisando @everyone e @here e o cargo <@&1550239353802858626>.")
+    assert "\\@everyone" in limpo, "tem que escapar @everyone"
+    assert "\\@here" in limpo
+    assert "\\<@&1550239353802858626>" in limpo
+    barras = limpo.count("\\")
+    assert barras == 3, f"barras demais ou de menos: {barras}"
+
+
+def test_saida_preserva_link_de_canal():
+    """Escapar mencao nao pode quebrar referencia a canal, que e util."""
+    from atlas.texto import limpar
+
+    assert "<#1551015583712026768>" in limpar("veja <#1551015583712026768>")
+
+
+def test_saida_nao_escapa_duas_vezes():
+    from atlas.texto import limpar
+
+    assert limpar("ja estava \\@everyone").count("\\") == 1
+
+
+# ------------------------------------------- saida sem informacao desnecessaria
+def test_saida_de_sucesso_nao_traz_contador_de_acoes():
+    """'Acoes: 2' e '- get_server_info' sao ruido interno."""
+    from atlas.formatting import result_embeds
+    from atlas.embeds import merge_embeds
+
+    b = EmbedBuilder()
+    r = _resultado(ok=True)
+    embeds = result_embeds(b, [r])
+
+    for e in embeds:
+        assert not e.fields, "contador de acoes nao deve existir mais"
+
+    # com texto do modelo junto, o checklist tem que sumir inteiro
+    junto = merge_embeds(embeds + [b.info("", "Apaguei o canal.")])
+    assert junto is not None
+    assert junto.description == "Apaguei o canal."
+
+
+def test_aviso_de_nao_confirmado_vem_separado_do_checklist():
+    """Se colar no checklist, o checklist deixa de ser puro e o descarte falha.
+    Foi assim que '- get_server_info' vazou para o usuario."""
+    from atlas.formatting import result_embeds
+    from atlas.embeds import merge_embeds
+
+    b = EmbedBuilder()
+    embeds = result_embeds(
+        b, [_resultado(ok=True, verified=False, nome="excluir #asta")]
+    )
+
+    assert len(embeds) == 2, "checklist e aviso tem que ser embeds separados"
+    assert "nao consegui confirmar" in embeds[1].description.lower() or \
+           "Nao consegui confirmar" in embeds[1].description
+
+    junto = merge_embeds(embeds + [b.info("", "Apaguei o canal.")])
+    assert junto is not None
+    assert "excluir #asta" in junto.description
+    assert "Apaguei o canal." in junto.description
+    assert "confirmar" in junto.description
+
+
+def _resultado(*, ok: bool, verified: bool | None = True, nome: str = "get_server_info"):
+    from types import SimpleNamespace
+    return SimpleNamespace(
+        ok=ok,
+        verified=verified,
+        action=SimpleNamespace(describe=lambda: nome),
+        user_message=None,
+        error=None,
+    )

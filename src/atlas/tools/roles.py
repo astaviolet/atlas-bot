@@ -13,7 +13,7 @@ from ..permissions import (
     require_role_hierarchy,
     split_unknown_permissions,
 )
-from .base import Tool, ToolContext
+from .base import Tool, ToolContext, confirmar_mudanca
 
 _ROLE_ID = {"type": "string", "description": "ID do cargo, como veio de get_roles."}
 _COLOR = {
@@ -129,11 +129,11 @@ def _delete_role(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _verify_delete_role(ctx: ToolContext, params: dict[str, Any], data: Any) -> bool:
-    snap = ctx.refresh()
     try:
-        return snap.find_role(int(params["role_id"])) is None
+        rid = int(params["role_id"])
     except (KeyError, TypeError, ValueError):
         return False
+    return confirmar_mudanca(ctx, lambda s: s.find_role(rid) is None)
 
 
 def _move_role(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:

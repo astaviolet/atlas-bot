@@ -179,6 +179,24 @@ def tirar_marcadores(txt: str) -> str:
     return txt
 
 
+_MENCIONAR_TODOS = re.compile(r"(?<!\\)@(everyone|here)\b", re.IGNORECASE)
+_MENCIONAR_ALVO = re.compile(r"(?<!\\)<@(?![#])([!&]?\d{15,25})>")
+
+
+def desarmar_mencoes(txt: str) -> str:
+    """Impede que o texto do bot pingue alguem.
+
+    Regra do projeto: nunca mencionar @everyone, @here ou cargo de verdade.
+    Citar tudo bem; disparar notificacao para o servidor inteiro, nao.
+
+    A barra invertida na frente faz o Discord mostrar o texto literal sem
+    resolver a mencao - e nao introduz caractere invisivel.
+    """
+    txt = _MENCIONAR_TODOS.sub(r"\@\1", txt)
+    txt = _MENCIONAR_ALVO.sub(r"\<@\1>", txt)
+    return txt
+
+
 def limpar(texto: str, *, limite: int = MAX_DESCRICAO) -> str:
     """Passa o texto por tudo: marcador vazado, caracteres, markdown pesado, tamanho."""
     if not texto:
@@ -188,6 +206,7 @@ def limpar(texto: str, *, limite: int = MAX_DESCRICAO) -> str:
     txt = _tabela_vira_linhas(txt)
     txt = _BACKTICK.sub("", txt)
     txt = _HEADER.sub("", txt)
+    txt = desarmar_mencoes(txt)
     txt = _ESPACOS_SEGUIDOS.sub(" ", txt)
     txt = _LINHAS_VAZIAS.sub("\n\n", txt)
     txt = txt.replace(" \n", "\n").strip()

@@ -15,49 +15,43 @@ def _group(results: Sequence[ActionResult]) -> tuple[list[ActionResult], list[Ac
 
 
 def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> list[EmbedSpec]:
-    """Um embed de resumo + um de detalhes quando houver falha."""
+    """So o essencial. O usuario pediu para nao receber informacao desnecessaria.
+
+    Quando tudo deu certo, isto devolve so o checklist - que merge_embeds
+    descarta se o modelo ja escreveu o que fez. Ou seja: na pratica o usuario
+    ve "Apaguei o canal." e nada mais.
+
+    O aviso de nao-confirmado vai em embed proprio, de proposito: se ele for
+    colado no checklist, o checklist deixa de ser "so checklist" e o descarte
+    nao acontece - foi assim que "- get_server_info" e "Acoes: 2" vazaram.
+    """
     if not results:
-        return [builder.info("Nada executado", "Esse pedido nao gerou nenhuma acao.")]
+        return []
 
     ok, failed = _group(results)
     embeds: list[EmbedSpec] = []
 
-    if ok and not failed:
-        lines = [r.action.describe() for r in ok]
-        body = "\n".join(f"- {line}" for line in lines)
-        unverified = [r for r in ok if r.verified is False]
-        kind = EmbedKind.WARNING if unverified else EmbedKind.SUCCESS
-        embed = builder.build(
-            kind,
-            "Configuracao concluida" if len(ok) > 1 else "Feito",
-            body,
-            fields=[EmbedField("Acoes", str(len(ok)), inline=True)],
-        )
-        if unverified:
-            embed.description += (
-                f"\n\n**{len(unverified)} acao(oes) nao puderam ser confirmadas** ao conferir o servidor depois."
-            )
-        embeds.append(embed)
-        return embeds
-
     if ok:
         body = "\n".join(f"- {r.action.describe()}" for r in ok)
-        embeds.append(builder.build(EmbedKind.RESULT, "Concluido em parte", body,
-                                    fields=[EmbedField("Funcionaram", str(len(ok)), inline=True),
-                                            EmbedField("Falharam", str(len(failed)), inline=True)]))
+        embeds.append(builder.build(EmbedKind.SUCCESS, "", body))
 
-    if failed:
-        rows = []
-        for r in failed[:20]:
-            detail = r.user_message or r.error or "erro desconhecido"
-            rows.append(f"**{r.action.describe()}**\n{detail}")
+    unverified = [r for r in ok if r.verified is False]
+    if unverified:
+        nomes = ", ".join(r.action.describe() for r in unverified[:3])
         embeds.append(
-            builder.error(
-                "Nao consegui executar" if not ok else "Essas partes falharam",
-                "\n\n".join(rows),
-                fields=[EmbedField("Total de falhas", str(len(failed)), inline=True)],
+            builder.warning(
+                "", f"Nao consegui confirmar: {nomes}. Confere se ficou como voce queria."
             )
         )
+
+    if failed:
+        linhas = []
+        for r in failed[:5]:
+            linhas.append(f"{r.action.describe()}: {r.user_message or 'falhou'}")
+        if len(failed) > 5:
+            linhas.append(f"e mais {len(failed) - 5}")
+        embeds.append(builder.error("", "\n".join(linhas)))
+
     return embeds
 
 

@@ -37,10 +37,15 @@ METHOD = """COMO TRABALHAR:
    um item especifico. Nao adivinhe IDs.
 2. Nao crie o que ja existe: se ja ha canal ou categoria com o nome pedido, use
    o existente e diga isso. O Discord aceita nome repetido; so voce evita.
-3. Prefira poucas chamadas certas a muitas exploratorias.
-4. Depois de executar, confira. Falhou: diga o que falhou e o que funcionou.
+3. RESOLVA REFERENCIA INDIRECTA SOZINHO. "o outro", "o primeiro", "esse que
+   sobrou", "o de cima", "aquele" - olhe a lista do servidor e deduza. Se ha
+   dois canais e ele diz "apague o outro", e o que nao e o da conversa: nao
+   pergunte. Perguntar o que a lista ja responde faz o bot parecer burro.
+   So pergunte quando houver mais de um candidato plausivel de verdade.
+4. Prefira poucas chamadas certas a muitas exploratorias.
+5. Depois de executar, confira. Falhou: diga o que falhou e o que funcionou.
    Nunca diga que esta pronto sem ter conferido.
-5. Para apagar muita coisa, espere a confirmacao que o sistema vai pedir."""
+6. Para apagar muita coisa, espere a confirmacao que o sistema vai pedir."""
 
 STYLE = """COMO ESCREVER: o minimo que resolve. Uma frase quando der, duas no maximo.
 Va direto ao que mudou ou ao que precisa saber. Nada de introducao ("Claro!",

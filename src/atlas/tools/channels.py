@@ -11,7 +11,7 @@ from ..permissions import (
     require_bot_permission,
     split_unknown_permissions,
 )
-from .base import Tool, ToolContext
+from .base import Tool, ToolContext, confirmar_mudanca
 
 _NAME = {"type": "string", "description": "Nome do canal. Use minusculas e hifens para canais de texto."}
 _TYPE = {
@@ -179,11 +179,11 @@ def _delete_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
 
 
 def _verify_delete_channel(ctx: ToolContext, params: dict[str, Any], data: Any) -> bool:
-    snap = ctx.refresh()
     try:
-        return snap.find_channel(int(params["channel_id"])) is None
+        cid = int(params["channel_id"])
     except (KeyError, TypeError, ValueError):
         return False
+    return confirmar_mudanca(ctx, lambda s: s.find_channel(cid) is None)
 
 
 def _create_category(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
@@ -251,11 +251,11 @@ def _delete_category(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]
 
 
 def _verify_delete_category(ctx: ToolContext, params: dict[str, Any], data: Any) -> bool:
-    snap = ctx.refresh()
     try:
-        return snap.find_channel(int(params["category_id"])) is None
+        cid = int(params["category_id"])
     except (KeyError, TypeError, ValueError):
         return False
+    return confirmar_mudanca(ctx, lambda s: s.find_channel(cid) is None)
 
 
 def _move_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:

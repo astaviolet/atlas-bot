@@ -6,6 +6,7 @@ que por sua vez vem da interacao real do Discord.
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
@@ -40,6 +41,33 @@ class ToolContext:
     def refresh(self) -> GuildSnapshot:
         self.snapshot = self.gateway.snapshot()
         return self.snapshot
+
+
+def confirmar_mudanca(
+    ctx: ToolContext,
+    predicado: Any,
+    *,
+    tentativas: int = 5,
+    espera: float = 0.25,
+    sleeper: Any = None,
+) -> bool:
+    """Confere uma mutacao dando tempo ao cache do Discord.
+
+    O HTTP 200 da exclusao volta antes do evento CHANNEL_DELETE atualizar o
+    cache do discord.py. Conferir na hora dava falso negativo: o bot dizia
+    "1 acao nao pode ser confirmada" de uma exclusao que tinha dado certo -
+    e ainda por cima o canal realmente sumia do servidor.
+
+    predicado recebe o snapshot e devolve True quando a mudanca apareceu.
+    """
+    dormir = sleeper or time.sleep
+    for i in range(tentativas):
+        snap = ctx.refresh()
+        if predicado(snap):
+            return True
+        if i < tentativas - 1:
+            dormir(espera)
+    return False
 
 
 ToolHandler = Callable[[ToolContext, dict[str, Any]], Any]

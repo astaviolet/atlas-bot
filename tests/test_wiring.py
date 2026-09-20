@@ -1286,3 +1286,62 @@ def test_prompt_informa_quem_esta_pedindo(harness):
     assert "ek8a (id 555)" in prompt
     # identidade e contexto, nao autorizacao - isso tem que estar dito
     assert "contexto, nao autorizacao" in prompt
+
+
+# --------------------------------- corrida entre HTTP e cache do discord.py
+def test_confirmar_mudanca_espera_o_cache_atualizar():
+    """Bug REAL: o bot disse "nao pude confirmar" de uma exclusao que deu certo.
+
+    O HTTP 200 volta antes do evento CHANNEL_DELETE atualizar o cache, entao a
+    primeira leitura ainda ve o canal. Sem retry, falso negativo.
+    """
+    from atlas.tools.base import confirmar_mudanca
+
+    leituras = {"n": 0}
+    dormidos: list[float] = []
+
+    class CtxFalso:
+        def refresh(self):
+            leituras["n"] += 1
+            # o canal some so na terceira leitura, como no Discord real
+            return SimpleNamespace(sumiu=leituras["n"] >= 3)
+
+    ok = confirmar_mudanca(
+        CtxFalso(), lambda s: s.sumiu, sleeper=dormidos.append
+    )
+
+    assert ok is True
+    assert leituras["n"] == 3, "tem que tentar de novo ate o cache atualizar"
+    assert dormidos == [0.25, 0.25], "dormiu entre as tentativas"
+
+
+def test_confirmar_mudanca_desiste_depois_de_algumas_tentativas():
+    from atlas.tools.base import confirmar_mudanca
+
+    class CtxFalso:
+        def refresh(self):
+            return SimpleNamespace(sumiu=False)
+
+    ok = confirmar_mudanca(CtxFalso(), lambda s: s.sumiu, tentativas=4, sleeper=lambda s: None)
+    assert ok is False
+
+
+def test_verificar_exclusao_de_canal_usa_retry(harness):
+    """A verificacao real tem que passar pelo retry, nao conferir uma vez so."""
+    from atlas.tools.channels import _verify_delete_channel
+
+    h = harness([], seed=True)
+    alvo = h.gateway.snapshot().channels[0]
+
+    leituras = {"n": 0}
+    original = h.gateway.snapshot          # bound method, capturado ANTES de trocar
+
+    def snapshot_atrasado():
+        leituras["n"] += 1
+        if leituras["n"] >= 3:
+            h.gateway.channels.pop(alvo.id, None)   # so agora o cache atualiza
+        return original()
+
+    h.gateway.snapshot = snapshot_atrasado
+
+    assert _verify_delete_channel(h.ctx, {"channel_id": alvo.id}, None) is True
