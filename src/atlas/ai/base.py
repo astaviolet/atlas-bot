@@ -9,7 +9,10 @@ sabe qual provedor existe do outro lado, nem como falar com ele.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:  # so para anotacao; evita qualquer risco de ciclo
+    from .classificacao import ClasseTarefa
 
 
 @dataclass
