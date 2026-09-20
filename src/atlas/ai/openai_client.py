@@ -43,7 +43,10 @@ class OpenAICompatibleClient:
         base_url: str,
         model_name: str,
         timeout: float = 60.0,
-        max_retries: int = 2,
+        #: 0 de proposito. O SDK retrya por conta propria; somado ao laco
+        #: deste cliente e ao fallback do Router eram 3 camadas de retry
+        #: (ate 9 requisicoes por rota). Um retry so, aqui, visivel no log.
+        max_retries: int = 0,
     ) -> None:
         # endpoint anonimo: chave vazia e valida, o marcador satisfaz o SDK
         self.anonymous = not api_key
@@ -66,9 +69,10 @@ class OpenAICompatibleClient:
             timeout=timeout,
             max_retries=max_retries,
         )
-        # quantas vezes insistir em cada modelo antes de passar para o proximo
-        self.max_attempts_per_model = 3
-        self.backoff_seconds = 4.0
+        # quantas vezes insistir em cada modelo antes de passar para o proximo.
+        # 2, nao 3: com 12 rotas no pool, trocar e mais barato que insistir.
+        self.max_attempts_per_model = 2
+        self.backoff_seconds = 0.5
         # AI_MODEL aceita lista separada por virgula: se o primeiro modelo
         # estiver ocupado ou fora do ar, o proximo assume. Endpoints publicos
         # gratuitos oscilam muito, entao failover nao e luxo, e o que faz o
@@ -178,6 +182,16 @@ class OpenAICompatibleClient:
                     response = self._client.chat.completions.create(**kwargs)
                 except Exception as exc:  # noqa: BLE001 - fronteira externa
                     ultimo_erro = exc
+                    if _is_rate_limited(exc):
+                        # 429: esta rota/modelo esta no limite agora. Esperar
+                        # nao muda nada - passa adiante na hora, sem dormir.
+                        # Se for o ultimo da lista, o laco termina e o erro
+                        # sobe retryable para o Router escolher outra rota.
+                        log.warning(
+                            "modelo %s no limite (429); passando adiante sem esperar",
+                            modelo,
+                        )
+                        break
                     if not _is_retryable(exc):
                         raise _translate(exc, modelo) from exc
                     log.warning(
@@ -193,18 +207,43 @@ class OpenAICompatibleClient:
         raise _translate(ultimo_erro, self.model_name) from ultimo_erro
 
 
-def _is_retryable(exc: Exception) -> bool:
-    """Erros transitorios: modelo ocupado, limite, timeout, conexao.
+def _is_rate_limited(exc: Exception) -> bool:
+    """429: o endpoint disse "estou no meu limite". Nao e defeito, e fila.
 
-    Endpoints publicos gratuitos devolvem 429/503 o tempo todo. Isso nao e
-    falha de configuracao, e fila - vale insistir antes de desistir.
+    A resposta certa nunca e esperar na mesma rota - e passar adiante. Medido
+    no log de producao: insistir aqui custou 24.679ms de um pedido de 35s.
     """
     import openai
 
-    if isinstance(exc, (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)):
+    if isinstance(exc, openai.RateLimitError):
+        return True
+    return getattr(exc, "status_code", None) == 429
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Vale insistir NA MESMA ROTA? Na pratica, quase nunca.
+
+    429 fica DE FORA de proposito. "Estou no meu limite" nao muda em 4
+    segundos, e o pool tem 12 rotas: insistir aqui custa caro e nao resolve.
+    Medido em producao (log do Actions, pedido "crie um canal chamado
+    pedribho"): 3 tentativas com backoff de 4s e 8s na mesma rota 429
+    queimaram 24.679ms antes de trocar - de um total de 35s do pedido.
+    Falhar na hora deixa o Router trocar de rota e por a rota em cooldown,
+    que e exatamente o que ele ja sabe fazer.
+
+    Timeout e conexao continuam retryaveis: sao piscadas de rede, e uma
+    segunda tentativa barata resolve.
+    """
+    import openai
+
+    if isinstance(exc, openai.RateLimitError):
+        return False
+    if isinstance(exc, (openai.APITimeoutError, openai.APIConnectionError)):
         return True
     status = getattr(exc, "status_code", None)
-    return status in (408, 409, 425, 429, 500, 502, 503, 504)
+    if status == 429:
+        return False
+    return status in (408, 409, 425, 500, 502, 503, 504)
 
 
 def classify_error(exc: AIError) -> str:

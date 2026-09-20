@@ -937,11 +937,54 @@ def test_503_e_transitorio_e_vai_para_o_proximo_modelo(monkeypatch):
     assert client.last_model == "livre"
 
 
-@pytest.mark.parametrize("status", [408, 409, 425, 429, 500, 502, 503, 504])
+@pytest.mark.parametrize("status", [408, 409, 425, 500, 502, 503, 504])
 def test_status_transitorio_e_reconhecido(status):
     from atlas.ai.openai_client import _is_retryable
 
     assert _is_retryable(_sdk_exc("APIStatusError", status)) is True
+
+
+# 429 saiu da lista acima de proposito. Duas perguntas diferentes:
+#   _is_retryable  -> vale insistir NA MESMA ROTA?           429: NAO
+#   _retryable_for -> o Router deve tentar OUTRA rota?       429: SIM
+# Confundir as duas era o bug: o cliente dormia 4s+8s na rota limitada
+# enquanto 11 rotas livres esperavam.
+def test_429_nao_insiste_na_mesma_rota():
+    from atlas.ai.openai_client import _is_rate_limited, _is_retryable
+
+    exc = _sdk_exc("APIStatusError", 429)
+    assert _is_retryable(exc) is False, "esperar na rota limitada nao resolve"
+    assert _is_rate_limited(exc) is True, "tem que passar adiante na hora"
+
+
+def test_429_continua_sendo_fila_para_o_router():
+    """Se virasse erro permanente, a rota morreria em vez de entrar em cooldown."""
+    from atlas.ai.openai_client import _retryable_for
+
+    assert _retryable_for(_sdk_exc("APIStatusError", 429)) is True
+
+
+def test_429_pula_para_o_proximo_modelo_sem_dormir(monkeypatch):
+    """O failover da lista AI_MODEL=a,b tem que sobreviver: sem sleep."""
+    import time
+
+    client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1",
+                                    model_name="limitado,livre")
+    client.backoff_seconds = 99.0  # se dormir, o teste estoura
+    dormiu = []
+    monkeypatch.setattr(time, "sleep", lambda s: dormiu.append(s))
+
+    def create(**kwargs):
+        if kwargs["model"] == "limitado":
+            raise _sdk_exc("RateLimitError", 429)
+        return _fake_response(text="ok do segundo")
+
+    monkeypatch.setattr(client._client.chat.completions, "create", create)
+    turno = client.generate(system="s", history=[], tools=[])
+
+    assert turno.text == "ok do segundo"
+    assert client.last_model == "livre"
+    assert dormiu == [], f"dormiu {dormiu}s numa rota que so precisava ser pulada"
 
 
 @pytest.mark.parametrize("status", [400, 401, 403, 404, 422])

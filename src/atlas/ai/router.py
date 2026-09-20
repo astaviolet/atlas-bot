@@ -50,7 +50,10 @@ class Router:
         cache: RequestCache | None = None,
         clock: Callable[[], float] = time.monotonic,
         max_attempts: int = 8,
-        backoff_seconds: float = 2.0,
+        #: Dormir entre trocas de rota custava ate 10s por troca. Com 12 rotas
+        #: no pool a troca tem que ser quase instantanea: a proxima rota esta
+        #: pronta, nao ha o que esperar.
+        backoff_seconds: float = 0.4,
         use_cache: bool = True,
     ) -> None:
         self.catalog: list[Gateway] = catalog if catalog is not None else list(CATALOG)
@@ -220,7 +223,7 @@ class Router:
                     rota.key, type(exc).__name__, latencia,
                 )
                 if reintentavel:
-                    time.sleep(min(self.backoff_seconds * (tentativa + 1), 10.0))
+                    time.sleep(min(self.backoff_seconds * (tentativa + 1), 1.5))
                 now = self._clock()
                 continue
             except Exception as exc:  # noqa: BLE001 - fronteira externa
