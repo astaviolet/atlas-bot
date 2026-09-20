@@ -31,15 +31,20 @@ def _health() -> int:
         for modelo in gateway.models:
             total += 1
             try:
-                resultado = probe_rota(gateway, modelo.model)
+                # probe_rota recebe a ModelRoute inteira, nao o nome do modelo
+                resultado = probe_rota(gateway, modelo)
                 estado = resultado.status.value
             except Exception as exc:
-                estado = f"ERRO {type(exc).__name__}"
+                estado = f"ERRO {type(exc).__name__}: {exc}"
             if estado == "OK":
                 ok += 1
             print(f"  {gateway.id}/{modelo.model:34} {estado}")
     print(f"\n  respondendo: {ok}/{total}")
-    return 0 if ok else 1
+    # Sempre 0. Este passo e informativo: se o pool gratuito estiver esgotado,
+    # devolver 1 aqui derruba o job e o bot nao sobe - que foi exatamente o que
+    # aconteceu. Pool vazio e motivo para o bot responder "a IA nao respondeu",
+    # nao para ele nem existir.
+    return 0
 
 
 def _check() -> int:
