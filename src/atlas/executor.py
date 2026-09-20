@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .audit import AuditLog
+from .dependencias import ordenar_por_dependencia
 from .design_check import checar_plano
 from .flow_control import Backpressure, GuildQuota
 from .snapshot_store import SnapshotStore
@@ -192,6 +193,11 @@ class Executor:
                 user_message="O plano tinha problema e nao executei nada: "
                 + "; ".join(problemas[:4]),
             )
+
+        # 5e. dependencias de execucao (spec 21). Ordenacao ESTAVEL: dentro do
+        # mesmo nivel a ordem do modelo e preservada, porque ele sabe a ordem
+        # que os canais devem aparecer.
+        actions = ordenar_por_dependencia(actions)
 
         counts = ActionQueue.partition(actions)
         self.policy.check_budget(**counts)

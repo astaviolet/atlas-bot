@@ -69,6 +69,20 @@ def _check_slowmode(value: Any) -> int | None:
 def _resolve_parent(ctx: ToolContext, params: dict[str, Any]) -> int | None:
     raw = params.get("category_id") or params.get("parent_id")
     if raw in (None, "", "none", "null"):
+        # Spec 21: o modelo nao tem como saber o id de uma categoria que ele
+        # mesmo pediu para criar neste plano. Deixar resolver por NOME contra o
+        # snapshot vivo - que ja contem o que foi criado antes nesta leva,
+        # porque cada tool faz ctx.refresh() depois de mutar.
+        nome = params.get("category_name")
+        if nome not in (None, ""):
+            alvo = str(nome).strip().casefold()
+            for c in ctx.snapshot.channels:
+                if c.is_category and c.name.strip().casefold() == alvo:
+                    return c.id
+            raise NotFound(
+                f"categoria {nome}",
+                user_message=f"Nao achei a categoria **{nome}** neste servidor.",
+            )
         return None
     try:
         parent_id = int(raw)
@@ -299,7 +313,10 @@ def _move_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     if channel.is_category:
         raise ToolError("categoria nao se move assim", user_message="Categorias se reordenam por posicao.")
 
-    has_parent_key = "category_id" in params or "parent_id" in params
+    has_parent_key = (
+        "category_id" in params or "parent_id" in params
+        or "category_name" in params
+    )
     if not has_parent_key and params.get("position") is None:
         raise ToolError("nada para mover", user_message="Me diga para qual categoria ou para qual posicao.")
 
@@ -317,7 +334,7 @@ def _verify_move_channel(ctx: ToolContext, params: dict[str, Any], data: Any) ->
         return False
     if channel is None:
         return False
-    if ("category_id" in params or "parent_id" in params):
+    if ("category_id" in params or "parent_id" in params or "category_name" in params):
         expected = _resolve_parent(ctx, params)
         if channel.parent_id != expected:
             return False
@@ -430,6 +447,14 @@ CHANNEL_TOOLS: list[Tool] = [
                 "name": _NAME,
                 "type": _TYPE,
                 "category_id": _CATEGORY_ID,
+                "category_name": {
+                    "type": "string",
+                    "description": (
+                        "Nome da categoria onde colocar o canal. Use isto em vez de "
+                        "category_id quando a categoria esta sendo criada no mesmo "
+                        "pedido e voce nao tem o id dela ainda."
+                    ),
+                },
                 "topic": {"type": "string", "description": "Topico/descricao do canal."},
                 "nsfw": {"type": "boolean", "description": "Marca o canal como NSFW. Nao vale para voz."},
                 "slowmode_delay": {"type": "integer", "description": "Segundos de slowmode, 0 a 21600."},
