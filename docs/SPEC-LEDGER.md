@@ -160,7 +160,7 @@ Seções na spec: **188**
 | 149 | BACKPRESSURE | PRONTA | `tests/test_flow_control.py` | backpressure |
 | 150 | FAIRNESS | PRONTA | `tests/test_flow_control.py` | cota por guild em janela |
 | 151 | SEGURANÇA DE TOOLS | PRONTA | `tests/test_security.py` | barreiras de schema, auth, policy e contexto |
-| 152 | TOOL RESULT | PARCIAL | `src/atlas/queue.py` | ActionResult tem ok/data/error/error_kind/verified; falta o campo metadata que a spec lista |
+| 152 | TOOL RESULT | PRONTA | `tests/test_batch.py` | ActionResult: ok=success, status derivado, data, error, metadata real (tool, duração, guild, corrigiu) |
 | 153 | OBSERVAÇÃO DO DISCORD | ABERTA | `—` |  |
 | 154 | EVENTUAL CONSISTENCY | ABERTA | `—` |  |
 | 155 | OPERAÇÕES EM LOTE | PRONTA | `tests/test_batch.py` | lote respeita a cota e reporta falhas |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **88**
-- PARCIAL: **7**
+- PRONTA: **89**
+- PARCIAL: **6**
 - ABERTA: **87**
 - FORA DE ESCOPO: **6**
 - Total: **188**

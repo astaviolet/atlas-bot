@@ -8,6 +8,7 @@ O modelo nunca chama o Discord direto.
 from __future__ import annotations
 
 import logging
+from time import monotonic as _monotonic
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
@@ -43,6 +44,20 @@ class ActionResult:
     error_kind: str | None = None
     verified: bool | None = None
     user_message: str | None = None
+    #: Spec 152. Metadados de execução que não são o resultado em si: quanto
+    #: custou, se a auto-correção rodou, se foi confirmado no Discord. Fica
+    #: separado de `data` de propósito — `data` é o que a API devolveu e pode
+    #: conter id e nome que vão para o modelo; metadata é para observabilidade e
+    #: não deve entrar no prompt.
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def status(self) -> str:
+        """Spec 152 pede `status`. Derivado, não guardado: assim ele nunca
+        diverge de `ok`/`error_kind`."""
+        if self.ok:
+            return "verified" if self.verified else "ok"
+        return (self.error_kind or "error").lower()
 
     def summary_line(self) -> str:
         mark = "✅" if self.ok else "❌"
@@ -103,6 +118,7 @@ class ActionQueue:
     def run_one(self, action: PlannedAction, *, corrigiu: bool = False) -> ActionResult:
         """Executa uma acao isolada. Nunca levanta: devolve ActionResult."""
         self.limiter.acquire(self.guild_id, action=action.tool)
+        inicio = _monotonic()
         try:
             data = self.dispatch(action)
         except AtlasError as exc:
@@ -126,6 +142,15 @@ class ActionQueue:
         else:
             verified = data.get("verified") if isinstance(data, dict) else None
             result = ActionResult(action=action, ok=True, data=data, verified=verified)
+
+        # metadata real, nao dict vazio (spec 152). 'corrigiu' entra porque e a
+        # unica forma de saber depois que a auto-correcao da Fase 12 rodou.
+        result.metadata = {
+            "tool": action.tool,
+            "duration_ms": round((_monotonic() - inicio) * 1000.0, 1),
+            "guild_id": self.guild_id,
+            "corrigiu": corrigiu,
+        }
 
         # Auto-correcao (spec 25): se o erro tem conserto conhecido, corrige e
         # tenta UMA vez. Sem laco - retry infinito aqui seria um jeito de travar

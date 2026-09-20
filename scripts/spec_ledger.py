@@ -101,7 +101,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     48: (PRONTA, "tests/test_batch.py", "memória de contexto entre mensagens, separada por guild"),
     91: (PRONTA, "tests/test_wiring.py", "deadline por pedido e timeout por chamada; prazo 0 corta antes da primeira chamada"),
     92: (PRONTA, "tests/test_errors.py", "provider offline, erro da IA, erro da API Discord, timeout — o agente responde em todos"),
-    152: (PARCIAL, "src/atlas/queue.py", "ActionResult tem ok/data/error/error_kind/verified; falta o campo metadata que a spec lista"),
+    152: (PRONTA, "tests/test_batch.py", "ActionResult: ok=success, status derivado, data, error, metadata real (tool, duração, guild, corrigiu)"),
     21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),

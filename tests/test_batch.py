@@ -239,3 +239,39 @@ def test_prazo_zero_desliga_a_expiracao(harness):
 def test_sem_pendencia_nao_esta_vencida(harness):
     h = harness([])
     assert h.session.confirmacao_vencida() is False
+
+
+# ------------------------------------------------- spec 152: tool result
+def test_resultado_carrega_metadata_real(harness):
+    """Spec 152 pede success/status/data/error/metadata. metadata nao pode ser
+    dict vazio - ai seria campo decorativo so para constar na lista."""
+    h = harness([turn(("create_role", {"name": "Moderador"})), final("ok")])
+    out = h.ask("cria o cargo Moderador")
+    ok = [r for r in out.results if r.ok]
+    assert ok, out.results
+    md = ok[0].metadata
+    assert md["tool"] == "create_role"
+    assert isinstance(md["duration_ms"], float) and md["duration_ms"] >= 0
+    assert md["guild_id"] == h.gateway.guild_id
+    assert "corrigiu" in md
+
+
+def test_status_e_derivado_nunca_guardado(harness):
+    """Se status fosse campo guardado, ele podia divergir de ok. Derivado, nao
+    tem como."""
+    h = harness([turn(("create_role", {"name": "X"})), final("ok")])
+    out = h.ask("cria o cargo X")
+    r = out.results[0]
+    assert r.status == ("verified" if r.verified else "ok")
+
+
+def test_status_de_falha_diz_o_tipo_do_erro(harness):
+    """Sem o assert de que a falha EXISTE este teste passava vazio - `if falhas`
+    sobre lista vazia nao afirma nada."""
+    h = harness([turn(("delete_channel", {"channel_id": 999999})), final("ok")])
+    out = h.ask("apaga esse canal")
+    falhas = [r for r in out.results if not r.ok]
+    assert falhas, "apagar canal que nao existe tem que falhar"
+    assert falhas[0].status != "ok"
+    assert falhas[0].status == (falhas[0].error_kind or "error").lower()
+    assert falhas[0].metadata["tool"] == "delete_channel"
