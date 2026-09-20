@@ -18,7 +18,7 @@ from .config import Limits
 from .design_check import auditar_servidor
 from .ai.classificacao import classificar
 from .estados import AgentState, RastreadorDeEstado
-from .snapshot_store import SnapshotStore
+from .snapshot_store import SnapshotStore, plano_de_restauracao
 from .task import TaskState, estado_da_tarefa
 from .embeds import EmbedBuilder, EmbedKind, EmbedSpec
 from .errors import AIError, AtlasError, ConfirmationRequired
@@ -285,7 +285,10 @@ class Agent:
 
     # --------------------------------------------------------------------- QA
     def _qa_pos_execucao(
-        self, results: list[ActionResult], pedido: str = ""
+        self,
+        results: list[ActionResult],
+        pedido: str = "",
+        estado_antes: Any = None,
     ) -> list[EmbedSpec]:
         """Conferir o estado REAL depois de mexer (spec 24, 138).
 
@@ -310,6 +313,15 @@ class Agent:
         # Um servidor pode estar sem categoria vazia e mesmo assim nao ser o que
         # o pedido pedia.
         problemas = [*problemas, *_faltas_contra_o_design(snapshot, pedido)]
+
+        # Spec 87: exclusão não tem inversa. O máximo honesto é dizer o que dá
+        # para recriar e o que não volta — e o que não volta tem de aparecer na
+        # resposta, senão o usuário acha que foi desfeito (spec 185).
+        if estado_antes is not None:
+            _, perdas = plano_de_restauracao(estado_antes, results)
+            if perdas:
+                problemas = [*problemas, *perdas[:2]]
+
         if not problemas:
             return []
         log.info("QA pos-execucao achou %d problema(s): %s", len(problemas), problemas)
@@ -344,6 +356,11 @@ class Agent:
             request=text,
         )
         declarations = self.registry.declarations()
+
+        # Spec 87: o estado ANTES da execução. `ctx.refresh()` substitui o
+        # snapshot pelo estado novo, e aí os canais excluídos já não estão lá —
+        # sem esta cópia não há de onde recriar nada.
+        estado_antes = self.ctx.snapshot
 
         session.add_user(text)
         all_results: list[ActionResult] = []
@@ -392,7 +409,7 @@ class Agent:
                 # Spec 138 tambem na conclusao normal. Antes o QA so rodava no
                 # caminho de limite de turnos, ou seja: quando tudo dava certo
                 # ninguem conferia o resultado.
-                embeds.extend(self._qa_pos_execucao(all_results, text))
+                embeds.extend(self._qa_pos_execucao(all_results, text, estado_antes))
                 return AgentOutcome(embeds=_cortar_por_prioridade(embeds, MAX_EMBEDS_PER_TURN), results=all_results)
 
             calls = [{"id": c.id, "name": c.name, "args": c.args} for c in response.calls]
@@ -435,7 +452,7 @@ class Agent:
 
         log.warning("limite de %d turnos atingido", self.limits.max_turns)
         embeds = result_embeds(self.builder, all_results) if all_results else []
-        embeds.extend(self._qa_pos_execucao(all_results, text))
+        embeds.extend(self._qa_pos_execucao(all_results, text, estado_antes))
         embeds.append(
             self.builder.warning(
                 "Parei no meio",

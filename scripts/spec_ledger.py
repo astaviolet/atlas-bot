@@ -213,7 +213,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     78: (PRONTA, "tests/test_design_system.py", "tema sozinho não muda a estrutura"),
     79: (PRONTA, "tests/test_design_system.py", "público muda a estrutura"),
     86: (PRONTA, "1991c78", "backup lógico"),
-    87: (PARCIAL, "1991c78", "rollback só inverte criações"),
+    87: (PRONTA, "tests/test_snapshot.py", "plano_de_restauracao recria a estrutura excluída a partir do estado anterior e devolve a lista do que não volta (id, histórico, cargo dos membros); aparece no aviso pós-execução"),
     88: (PRONTA, "tests/test_snapshot.py", "versionamento JSONL por guild (Fase 13 `9797e35`)"),
     89: (PRONTA, "3cadac1", "task system com estados"),
     90: (PRONTA, "76ae5c1", "cancelamento de tarefa"),

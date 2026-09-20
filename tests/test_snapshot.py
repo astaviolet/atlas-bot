@@ -205,3 +205,99 @@ def test_historico_e_isolado_por_guild(tmp_path):
     assert len(loja.listar_versoes(1)) == 1
     assert len(loja.listar_versoes(2)) == 1
     assert loja.ler_versao(1, 1)["servidor"] == "G1"
+
+
+# ------------------------------------------------- spec 87: rollback de exclusão
+def _res(tool, id_alvo, ok=True):
+    from atlas.queue import ActionResult, PlannedAction
+
+    return ActionResult(
+        action=PlannedAction(tool=tool, params={"channel_id" if "channel" in tool or "category" in tool else "role_id": id_alvo}),
+        ok=ok, data={},
+    )
+
+
+def _snap_com(id_canal=11, id_cargo=22):
+    from atlas.models import Channel, ChannelType, GuildSnapshot, Role
+
+    return GuildSnapshot(
+        id=1, name="S", owner_id=1, bot_role_id=9, bot_permissions=0,
+        channels=[Channel(id=id_canal, name="regras", type=ChannelType.GUILD_TEXT,
+                          parent_id=5, topic="leia antes", nsfw=False, slowmode_delay=10)],
+        roles=[Role(id=id_cargo, name="Moderador", position=3, color=0xFF0000,
+                    permissions=0, hoist=True, mentionable=False)],
+    )
+
+
+def test_restauracao_recria_canal_com_os_dados_do_snapshot():
+    from atlas.snapshot_store import plano_de_restauracao
+
+    plano, perdas = plano_de_restauracao(_snap_com(), [_res("delete_channel", 11)])
+    assert len(plano) == 1
+    args = plano[0]["args"]
+    assert plano[0]["name"] == "create_channel"
+    assert args["name"] == "regras"
+    assert args["topic"] == "leia antes"
+    assert args["parent_id"] == "5"
+
+
+def test_restauracao_recria_cargo():
+    from atlas.snapshot_store import plano_de_restauracao
+
+    plano, _ = plano_de_restauracao(_snap_com(), [_res("delete_role", 22)])
+    assert plano[0]["name"] == "create_role"
+    assert plano[0]["args"]["name"] == "Moderador"
+    assert plano[0]["args"]["color"] == 0xFF0000
+
+
+def test_restauracao_diz_o_que_nao_volta():
+    """Spec 185: prometer 'desfeito' inteiro seria sucesso falso."""
+    from atlas.snapshot_store import plano_de_restauracao
+
+    _, perdas = plano_de_restauracao(_snap_com(), [_res("delete_channel", 11)])
+    assert perdas, "tinha que listar as perdas"
+    assert any("histórico de mensagens" in p for p in perdas)
+    assert any("regras" in p for p in perdas), "a perda tem que dizer de qual canal"
+
+
+def test_restauracao_de_cargo_avisa_que_membros_perdem_o_cargo():
+    from atlas.snapshot_store import plano_de_restauracao
+
+    _, perdas = plano_de_restauracao(_snap_com(), [_res("delete_role", 22)])
+    assert any("cargo dos membros" in p for p in perdas)
+
+
+def test_restauracao_nao_inventa_quando_o_snapshot_nao_tem():
+    from atlas.snapshot_store import plano_de_restauracao
+
+    plano, perdas = plano_de_restauracao(_snap_com(), [_res("delete_channel", 999)])
+    assert plano == []
+    assert perdas == []
+
+
+def test_restauracao_ignora_acao_que_falhou():
+    from atlas.snapshot_store import plano_de_restauracao
+
+    plano, _ = plano_de_restauracao(_snap_com(), [_res("delete_channel", 11, ok=False)])
+    assert plano == []
+
+
+def test_restauracao_ignora_acao_que_nao_e_exclusao():
+    """Criar não entra aqui - isso é o plano_de_rollback, que é reversível de
+    verdade. Misturar os dois faria 'restaurar' excluir o que foi criado."""
+    from atlas.queue import ActionResult, PlannedAction
+    from atlas.snapshot_store import plano_de_restauracao
+
+    r = ActionResult(action=PlannedAction(tool="create_channel", params={"name": "x"}),
+                     ok=True, data={"created": {"id": 77}})
+    plano, _ = plano_de_restauracao(_snap_com(), [r])
+    assert plano == []
+
+
+def test_restauracao_devolve_tupla_de_proposito():
+    """Devolver só o plano convidaria o chamador a apresentar como 'desfeito'.
+    A tupla obriga a olhar para as perdas."""
+    from atlas.snapshot_store import plano_de_restauracao
+
+    resultado = plano_de_restauracao(_snap_com(), [_res("delete_channel", 11)])
+    assert isinstance(resultado, tuple) and len(resultado) == 2

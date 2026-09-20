@@ -205,3 +205,82 @@ def plano_de_rollback(resultados: list[Any]) -> list[dict[str, Any]]:
         campo = _CHAVE_ID[tool][0]
         inversas.append({"name": alvo, "args": {campo: str(novo_id)}})
     return inversas
+
+
+#: O que se perde ao recriar algo que foi excluído. Spec 87: o rollback de
+#: destruição existe, mas tem de dizer o que não volta. Prometer "desfazer"
+#: inteiro seria sucesso falso (spec 185).
+_PERDAS_DA_RECRIACAO: dict[str, tuple[str, ...]] = {
+    "delete_channel": ("id do canal (menções <#id> antigas param de funcionar)",
+                       "histórico de mensagens", "fixados"),
+    "delete_category": ("id da categoria", "ordem dos canais que estavam dentro"),
+    "delete_role": ("id do cargo (menções <@&id> antigas param de funcionar)",
+                    "cargo dos membros que o tinham", "posição exata na hierarquia"),
+}
+
+#: Tool que recria cada exclusão, e os campos que o snapshot permite recuperar.
+#: O quarto elemento é o campo de id que a exclusão recebe. Não dá para
+#: reaproveitar `_CHAVE_ID`: aquela é indexada pelas tools de CRIAÇÃO (é o
+#: rollback de criação, onde o id vem da resposta). Aqui a tool é a de exclusão.
+_RECRIO = {
+    "delete_channel": ("create_channel", ("name", "type", "topic", "nsfw", "slowmode_delay"), "channel_id"),
+    "delete_category": ("create_category", ("name",), "category_id"),
+    "delete_role": ("create_role", ("name", "color", "hoist", "mentionable"), "role_id"),
+}
+
+
+def plano_de_restauracao(
+    snapshot: Any, resultados: list[Any]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Plano para recriar o que foi EXCLUÍDO, mais a lista do que não volta.
+
+    Diferença para `plano_de_rollback`: aquela inverte o que foi criado (excluir
+    de volta) — reversível de verdade. Esta lida com exclusão, onde não existe
+    inversa: o Discord não devolve id, histórico nem cargo de membro. O máximo
+    honesto é recriar a estrutura com o mesmo nome, tipo e configurações que o
+    snapshot guardou, e dizer na cara o que se perdeu.
+
+    Devolve tupla `(plano, perdas)` de propósito. Devolver só o plano convidaria
+    o chamador a apresentar como "desfeito" — e não foi.
+    """
+    por_id: dict[str, Any] = {}
+    for entidade in getattr(snapshot, "channels", []) or []:
+        por_id[str(getattr(entidade, "id", ""))] = entidade
+    for entidade in getattr(snapshot, "roles", []) or []:
+        por_id[str(getattr(entidade, "id", ""))] = entidade
+
+    plano: list[dict[str, Any]] = []
+    perdas: list[str] = []
+    for r in resultados:
+        if not getattr(r, "ok", False):
+            continue
+        acao = getattr(r, "action", None)
+        tool = getattr(acao, "tool", "") or ""
+        if tool not in _RECRIO:
+            continue
+
+        alvo_tool, campos, campo_id = _RECRIO[tool]
+        params = getattr(acao, "params", {}) or {}
+        alvo_id = str(params.get(campo_id) or params.get("id") or "")
+        entidade = por_id.get(alvo_id)
+        if entidade is None:
+            continue  # sem registro no snapshot: não inventar estrutura
+
+        args = {campo: getattr(entidade, campo) for campo in campos
+                if getattr(entidade, campo, None) is not None}
+        if not args.get("name"):
+            continue
+        if "type" in args:
+            tipo = args["type"]
+            args["type"] = getattr(tipo, "value", tipo)
+        pai = getattr(entidade, "parent_id", None)
+        if pai:
+            args["parent_id"] = str(pai)
+
+        plano.append({"name": alvo_tool, "args": args})
+        nome = args["name"]
+        for perda in _PERDAS_DA_RECRIACAO[tool]:
+            item = f"{nome}: perde {perda}"
+            if item not in perdas:
+                perdas.append(item)
+    return plano, perdas

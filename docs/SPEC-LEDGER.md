@@ -95,7 +95,7 @@ Seções na spec: **188**
 | 84 | SERVER REBUILD | PRONTA | `tests/test_reforma.py` | AUDITAR → MAPEAR → PLANEJAR → MOSTRAR IMPACTO; não executa |
 | 85 | MIGRAÇÃO | PRONTA | `tests/test_reforma.py` | mapeia old→new e preserva id: renomeia e move em vez de excluir e recriar |
 | 86 | BACKUP LÓGICO | PRONTA | `1991c78` | backup lógico |
-| 87 | ROLLBACK | PARCIAL | `1991c78` | rollback só inverte criações |
+| 87 | ROLLBACK | PRONTA | `tests/test_snapshot.py` | plano_de_restauracao recria a estrutura excluída a partir do estado anterior e devolve a lista do que não volta (id, histórico, cargo dos membros); aparece no aviso pós-execução |
 | 88 | CONFIGURATION VERSIONING | PRONTA | `tests/test_snapshot.py` | versionamento JSONL por guild (Fase 13 `9797e35`) |
 | 89 | TASK SYSTEM | PRONTA | `3cadac1` | task system com estados |
 | 90 | CANCELAMENTO | PRONTA | `76ae5c1` | cancelamento de tarefa |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **138**
-- PARCIAL: **5**
+- PRONTA: **139**
+- PARCIAL: **4**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**
