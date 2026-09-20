@@ -1,0 +1,316 @@
+"""Agente. Faz o laco modelo <-> ferramentas, sempre passando pelo executor.
+
+O modelo decide *o que* pedir. O executor decide *se pode*. Essa separacao e o
+que impede que uma mensagem do usuario, por mais convincente, produza uma acao
+proibida.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from typing import Any
+
+from .ai import ModelClient, ensure_call_ids
+from .audit import AuditLog
+from .config import Limits
+from .embeds import EmbedBuilder, EmbedSpec
+from .errors import AIError, AtlasError, ConfirmationRequired
+from .executor import Executor
+from .formatting import (
+    confirmation_embed,
+    error_embed,
+    injection_embed,
+    result_embeds,
+)
+from .policy import Policy
+from .prompts import build_system_prompt
+from .queue import ActionQueue, ActionResult
+from .session import Session, PendingConfirmation, classify_reply
+from .tools.base import ToolContext, ToolRegistry
+
+log = logging.getLogger(__name__)
+
+MAX_EMBEDS_PER_TURN = 3
+
+
+@dataclass
+class AgentOutcome:
+    embeds: list[EmbedSpec] = field(default_factory=list)
+    results: list[ActionResult] = field(default_factory=list)
+    blocked: str | None = None
+
+
+class Agent:
+    def __init__(
+        self,
+        *,
+        ctx: ToolContext,
+        registry: ToolRegistry,
+        executor: Executor,
+        model: ModelClient,
+        builder: EmbedBuilder,
+        audit: AuditLog,
+        policy: Policy,
+        limits: Limits,
+    ) -> None:
+        self.ctx = ctx
+        self.registry = registry
+        self.executor = executor
+        self.model = model
+        self.builder = builder
+        self.audit = audit
+        self.policy = policy
+        self.limits = limits
+
+    # ------------------------------------------------------------------ API
+    async def handle(self, text: str, session: Session) -> AgentOutcome:
+        """Processa uma mensagem do usuario e devolve os embeds a enviar."""
+        screening = self.policy.screen_user_text(text)
+        if screening["unicode_issues"]:
+            log.warning("unicode suspeito na mensagem: %s", screening["unicode_issues"])
+            self.audit.record(
+                action="screen.unicode",
+                guild_id=self.ctx.guild_id,
+                channel_id=session.channel_id,
+                params={"issues": screening["unicode_issues"]},
+                result="flagged",
+            )
+
+        # 1. tentativa de tomada de controle -> recusa direta, nao roda o modelo
+        if screening["injection_hits"]:
+            self.audit.record(
+                action="screen.injection",
+                guild_id=self.ctx.guild_id,
+                channel_id=session.channel_id,
+                params={"hits": screening["injection_hits"]},
+                result="blocked",
+            )
+            return AgentOutcome(
+                embeds=[injection_embed(self.builder, screening["injection_hits"])],
+                blocked="prompt_injection",
+            )
+
+        # 2. confirmacao pendente?
+        if session.pending is not None:
+            return await self._resolve_confirmation(text, session)
+
+        # 3. fluxo normal
+        try:
+            return await self._run_loop(text, session)
+        except ConfirmationRequired as exc:
+            # defensivo: o laco trata confirmacao antes de executar, entao chegar
+            # aqui significa um caminho que nao passou por _run_loop.
+            log.warning("ConfirmationRequired escapou do laco: %s", exc)
+            return AgentOutcome(
+                embeds=[confirmation_embed(self.builder, exc.summary, _count_lines(exc.summary))],
+                blocked="confirmation_required",
+            )
+        except AIError as exc:
+            self.audit.record(
+                action="ai.error",
+                guild_id=self.ctx.guild_id,
+                channel_id=session.channel_id,
+                result="error",
+                error=str(exc),
+            )
+            return AgentOutcome(embeds=[error_embed(self.builder, exc)])
+        except AtlasError as exc:
+            self.audit.record(
+                action="agent.error",
+                guild_id=self.ctx.guild_id,
+                channel_id=session.channel_id,
+                result="error",
+                error=str(exc),
+            )
+            return AgentOutcome(embeds=[error_embed(self.builder, exc)])
+        except Exception as exc:  # noqa: BLE001 - ultima barreira antes do Discord
+            log.exception("erro inesperado no agente")
+            self.audit.record(
+                action="agent.unexpected",
+                guild_id=self.ctx.guild_id,
+                channel_id=session.channel_id,
+                result="error",
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            return AgentOutcome(
+                embeds=[self.builder.error("Algo quebrou aqui", "Deu um erro inesperado do meu lado. Tenta de novo.")]
+            )
+
+    # ------------------------------------------------------------ confirmacao
+    async def _resolve_confirmation(self, text: str, session: Session) -> AgentOutcome:
+        pending = session.pending
+        assert pending is not None
+        verdict = classify_reply(text)
+
+        if verdict == "no":
+            session.pending = None
+            return AgentOutcome(
+                embeds=[self.builder.info("Cancelado", "Nada foi excluido.")]
+            )
+
+        if verdict != "yes":
+            return AgentOutcome(
+                embeds=[
+                    self.builder.confirm(
+                        "Ainda esperando",
+                        f"Tem {pending.summary.count(chr(10)) + 1} exclusao(oes) na fila.\n\n"
+                        f"{pending.summary}\n\nResponda **sim** ou **nao**.",
+                    )
+                ],
+                blocked="awaiting_confirmation",
+            )
+
+        session.pending = None
+        try:
+            plan = self.executor.prepare(pending.calls, confirm_token=pending.token)
+        except ConfirmationRequired:
+            # nao deve acontecer: o token e derivado do proprio plano
+            return AgentOutcome(
+                embeds=[self.builder.error("Confirmacao expirou", "Monte o pedido de novo, por favor.")]
+            )
+        except AtlasError as exc:
+            return AgentOutcome(embeds=[error_embed(self.builder, exc)])
+
+        results = self.executor.execute(plan)
+        self.audit.record(
+            action="confirmation.granted",
+            guild_id=self.ctx.guild_id,
+            channel_id=session.channel_id,
+            params={"actions": len(plan.actions)},
+            result="ok",
+        )
+        session.add_function_results([_result_payload(r) for r in results])
+        return AgentOutcome(embeds=result_embeds(self.builder, results)[:MAX_EMBEDS_PER_TURN], results=results)
+
+    # ------------------------------------------------------------ laco do modelo
+    async def _run_loop(self, text: str, session: Session) -> AgentOutcome:
+        self.ctx.refresh()
+        system = build_system_prompt(self.ctx.snapshot, self.registry, self.policy)
+        declarations = self.registry.declarations()
+
+        session.add_user(text)
+        all_results: list[ActionResult] = []
+
+        for turn in range(self.limits.max_turns):
+            response = ensure_call_ids(
+                self.model.generate(system=system, history=session.history, tools=declarations),
+                turn_index=turn,
+            )
+
+            if not response.wants_tools:
+                if response.text:
+                    session.add_assistant_text(response.text)
+                embeds = result_embeds(self.builder, all_results) if all_results else []
+                if response.text:
+                    embeds.append(self.builder.info("Atlas", response.text))
+                if not embeds:
+                    embeds = [self.builder.info("Atlas", "Nao encontrei nada para fazer nesse pedido.")]
+                return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+
+            calls = [{"id": c.id, "name": c.name, "args": c.args} for c in response.calls]
+            session.add_model_calls(calls)
+
+            # require_confirmation=False: o plano volta para que a gente possa
+            # guardar os `calls` reais e reexecutar depois do "sim".
+            plan = self.executor.prepare(calls, require_confirmation=False)
+
+            # plano com exclusoes relevantes: para e pergunta antes de tocar em nada
+            deletes = plan.counts.get("deletes", 0)
+            if deletes >= self.policy.destructive_confirm_threshold:
+                summary = "\n".join(f"- {l}" for l in plan.destructive_labels)
+                session.pending = PendingConfirmation(token=plan.token, calls=calls, summary=summary)
+                return AgentOutcome(
+                    embeds=[confirmation_embed(self.builder, summary, deletes)],
+                    blocked="confirmation_required",
+                )
+
+            results = self.executor.execute(plan)
+            all_results.extend(results)
+            session.add_function_results([_result_payload(r) for r in results])
+
+            # memoria de objetos criados, para "agora de permissao a ele"
+            for result in results:
+                _remember_created(session, result)
+
+        log.warning("limite de %d turnos atingido", self.limits.max_turns)
+        embeds = result_embeds(self.builder, all_results) if all_results else []
+        embeds.append(
+            self.builder.warning(
+                "Parei no meio",
+                f"Cheguei ao limite de {self.limits.max_turns} rodadas internas nessa solicitacao. "
+                "O que ja estava feito ficou feito; o resto precisa de outro pedido.",
+            )
+        )
+        return AgentOutcome(embeds=embeds[:MAX_EMBEDS_PER_TURN], results=all_results)
+
+
+# --------------------------------------------------------------------- utils
+def _count_lines(summary: str) -> int:
+    return len([l for l in summary.splitlines() if l.strip()])
+
+
+def _result_payload(result: ActionResult) -> dict[str, Any]:
+    """O que volta para o modelo. Sem dado sensivel, com status de verificacao.
+
+    O `id` casa esta resposta com a tool call que a originou; sem ele o provedor
+    rejeita a conversa no turno seguinte.
+    """
+    if result.ok:
+        data = result.data if isinstance(result.data, dict) else {"result": result.data}
+        return {
+            "id": result.action.call_id,
+            "name": result.action.tool,
+            "response": {
+                "status": "ok",
+                "verified": data.get("verified"),
+                "detail": {k: v for k, v in data.items() if k not in ("tool", "label")},
+            },
+        }
+    return {
+        "id": result.action.call_id,
+        "name": result.action.tool,
+        "response": {
+            "status": "error",
+            "error_kind": result.error_kind,
+            "error": result.user_message or result.error,
+        },
+    }
+
+
+def _remember_created(session: Session, result: ActionResult) -> None:
+    if not result.ok or not isinstance(result.data, dict):
+        return
+    tool = result.action.tool
+    if tool == "create_role":
+        role = result.data.get("created") or {}
+        if role.get("name") and role.get("id"):
+            session.remember("role", str(role["name"]), str(role["id"]))
+    elif tool in ("create_channel", "create_category"):
+        channel = result.data.get("created") or {}
+        if channel.get("name") and channel.get("id"):
+            session.remember("channel", str(channel["name"]), str(channel["id"]))
+
+
+def build_agent(
+    *,
+    ctx: ToolContext,
+    registry: ToolRegistry,
+    model: ModelClient,
+    builder: EmbedBuilder,
+    audit: AuditLog,
+    policy: Policy,
+    limits: Limits,
+    queue: ActionQueue,
+) -> Agent:
+    executor = Executor(ctx=ctx, registry=registry, queue=queue, audit=audit, policy=policy)
+    return Agent(
+        ctx=ctx,
+        registry=registry,
+        executor=executor,
+        model=model,
+        builder=builder,
+        audit=audit,
+        policy=policy,
+        limits=limits,
+    )

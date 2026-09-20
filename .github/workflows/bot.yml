@@ -1,0 +1,119 @@
+name: Atlas no ar
+
+# Por que tres gatilhos:
+#   workflow_dispatch  -> voce liga/desliga na mao pela aba Actions
+#   push               -> codigo novo no ar automaticamente
+#   schedule           -> o runner do Actions mata o job em 6h, entao a cada 5h
+#                         uma execucao nova assume e a anterior e cancelada
+#                         pela chave `concurrency` abaixo.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "README.md"
+      - "docs/**"
+  schedule:
+    - cron: "0 */5 * * *"
+
+# Uma instancia so. Quando uma execucao nova comeca, a antiga e derrubada -
+# isso evita dois bots com o mesmo token disputando a mesma sessao do gateway.
+concurrency:
+  group: atlas-bot
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    name: Testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Rodar suíte
+        run: python -m pytest -q
+
+  bot:
+    name: Bot (turno de até 6h)
+    needs: testes
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      # Imprime so o NOME do que falta. Nenhum valor de segredo e escrito no log.
+      - name: Conferir segredos
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+        run: |
+          faltando=""
+          for v in DISCORD_TOKEN AI_API_KEY AI_BASE_URL AI_MODEL; do
+            if [ -z "${!v}" ]; then faltando="$faltando $v"; fi
+          done
+          if [ -n "$faltando" ]; then
+            echo "::error::Segredos ausentes:$faltando"
+            echo "Crie em: Settings > Secrets and variables > Actions > New repository secret."
+            exit 1
+          fi
+          echo "Segredos obrigatorios presentes."
+
+      - name: Conferir configuração
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
+        run: python main.py --check
+
+      - name: Rodar bot
+        env:
+          DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
+          PYTHONUNBUFFERED: "1"
+          MAX_RUN_SECONDS: "20700"
+        run: |
+          chmod +x scripts/run_bot.sh
+          ./scripts/run_bot.sh
+
+      - name: Publicar logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atlas-logs-${{ github.run_id }}
+          path: |
+            logs/bot.log
+            logs/audit.jsonl
+          if-no-files-found: ignore
+          retention-days: 7

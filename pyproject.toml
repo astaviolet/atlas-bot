@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-bot"
+version = "0.1.0"
+description = "Agente Discord para configuracao estrutural de servidores, via gateway de IA compativel com a API OpenAI"
+requires-python = ">=3.11"
+dependencies = [
+    "discord.py>=2.4",
+    "openai>=1.40",
+    "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]
