@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .audit import AuditLog
+from .design_check import checar_plano
 from .errors import ConfirmationRequired, ToolError
 from .models import GuildSnapshot
 from .policy import DESTRUCTIVE_TOOLS, Policy
@@ -137,6 +138,25 @@ class Executor:
                     destructive_labels.append(f"{label} (x{count})")
 
         # 5b. cota
+        # 5b. qualidade objetiva do plano (spec 47). Roda antes de qualquer
+        # chamada ao Discord: plano ruim nao deve gastar rate limit para depois
+        # ser desfeito. So defeito objetivo - duplicata, orfao, cargo novo com
+        # permissao administrativa. Estetica nao se valida em codigo.
+        problemas = checar_plano(actions, self.ctx.snapshot)
+        if problemas:
+            log.warning("plano rejeitado: %s", problemas)
+            self.audit.record(
+                action="design.plan_rejected",
+                guild_id=self.ctx.guild_id,
+                params={"problemas": problemas[:10]},
+                result="blocked",
+            )
+            raise ToolError(
+                "plano com defeito",
+                user_message="O plano tinha problema e nao executei nada: "
+                + "; ".join(problemas[:4]),
+            )
+
         counts = ActionQueue.partition(actions)
         self.policy.check_budget(**counts)
 

@@ -15,6 +15,7 @@ from typing import Any
 from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .config import Limits
+from .design_check import auditar_servidor
 from .embeds import EmbedBuilder, EmbedSpec
 from .errors import AIError, AtlasError, ConfirmationRequired
 from .executor import Executor
@@ -198,6 +199,36 @@ class Agent:
         session.add_function_results([_result_payload(r) for r in results])
         return AgentOutcome(embeds=result_embeds(self.builder, results)[:MAX_EMBEDS_PER_TURN], results=results)
 
+    # --------------------------------------------------------------------- QA
+    def _qa_pos_execucao(self, results: list[ActionResult]) -> list[EmbedSpec]:
+        """Conferir o estado REAL depois de mexer (spec 24, 138).
+
+        So roda quando algo mudou - ler o servidor nao precisa de QA. E so
+        reporta defeito objetivo: categoria vazia, canal orfao, duplicata.
+        Nao opina sobre estetica; isso nao se decide em codigo.
+        """
+        # So em construcao de verdade (>= 3 mudancas). Criar UMA categoria agora
+        # e por os canais dentro na volta seguinte e fluxo normal, nao defeito -
+        # avisar "categoria vazia" ali seria alarme falso.
+        mudancas = [r for r in results if r.ok and not is_read_only(r.action.tool)]
+        if len(mudancas) < 3:
+            return []
+        try:
+            snapshot = self.ctx.refresh()
+        except Exception:  # noqa: BLE001 - QA nunca derruba a resposta
+            log.warning("QA pos-execucao nao conseguiu reler o servidor", exc_info=True)
+            return []
+        problemas = auditar_servidor(snapshot)
+        if not problemas:
+            return []
+        log.info("QA pos-execucao achou %d problema(s): %s", len(problemas), problemas)
+        return [
+            self.builder.warning(
+                "",
+                "Conferindo depois: " + "; ".join(problemas[:2]),
+            )
+        ]
+
     # ------------------------------------------------------------ laco do modelo
     async def _run_loop(self, text: str, session: Session) -> AgentOutcome:
         self.ctx.refresh()
@@ -289,6 +320,7 @@ class Agent:
 
         log.warning("limite de %d turnos atingido", self.limits.max_turns)
         embeds = result_embeds(self.builder, all_results) if all_results else []
+        embeds.extend(self._qa_pos_execucao(all_results))
         embeds.append(
             self.builder.warning(
                 "Parei no meio",
