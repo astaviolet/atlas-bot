@@ -31,6 +31,8 @@ from .base import ModelTurn
 from .cache import RequestCache, chave_pedido
 from .health import HealthRegistry
 from .openai_client import OpenAICompatibleClient, classify_error
+from .classificacao import ClasseTarefa, exigencias
+from .classificacao import prefere_rapida as prefere_rapida_classe
 from .providers import CATALOG, Capabilities, Gateway, ModelRoute
 from .stats import PoolStats
 
@@ -124,7 +126,13 @@ class Router:
             m for g in self.catalog for m in g.models if m.caps.satisfies(needed)
         ]
 
-    def escolher(self, needed: Capabilities, *, now: float | None = None) -> ModelRoute | None:
+    def escolher(
+        self,
+        needed: Capabilities,
+        *,
+        now: float | None = None,
+        prefere_rapida: bool = False,
+    ) -> ModelRoute | None:
         """Melhor rota utilizavel agora, ou None se o pool inteiro estiver indisponivel."""
         now = self._clock() if now is None else now
         melhor: ModelRoute | None = None
@@ -141,7 +149,15 @@ class Router:
             servidos = self._servidos.get(rota.key, 0)
             carga = servidos / max(1, rota.weight)          # round robin ponderado
             latencia = h.latency_ema_ms if h.latency_ema_ms is not None else 0.0
-            score = (h.consecutive_failures, round(carga, 6), latencia)
+            # Spec 107: pedido simples desempata por rapidez, o resto por
+            # confiabilidade. Confiabilidade continua sendo a primeira
+            # chave nos dois: rapidez nao justifica insistir em rota que
+            # esta falhando.
+            score = (
+                (h.consecutive_failures, latencia, round(carga, 6))
+                if prefere_rapida
+                else (h.consecutive_failures, round(carga, 6), latencia)
+            )
             if melhor_score is None or score < melhor_score:
                 melhor, melhor_score = rota, score
         return melhor
@@ -154,8 +170,17 @@ class Router:
         history: list[dict[str, Any]],
         tools: list[dict[str, Any]],
         guild_id: int | None = None,
+        classe: ClasseTarefa | None = None,
     ) -> ModelTurn:
-        needed = Capabilities(tool_calling=bool(tools))
+        # Spec 107: a classe da tarefa decide o que a rota precisa saber
+        # fazer. Sem classe, cai no comportamento antigo (spec 3: nao
+        # regredir).
+        if classe is not None:
+            needed = exigencias(classe, tools_disponiveis=bool(tools))
+            rapida = prefere_rapida_classe(classe)
+        else:
+            needed = Capabilities(tool_calling=bool(tools))
+            rapida = False
         if not self.candidatos(needed):
             raise AIError(
                 "nenhuma rota no catalogo atende o que o pedido exige",
@@ -182,7 +207,7 @@ class Router:
         now = self._clock()
 
         for tentativa in range(self.max_attempts):
-            rota = self.escolher(needed, now=now)
+            rota = self.escolher(needed, now=now, prefere_rapida=rapida)
             if rota is None:
                 break
             if rota.key in tentadas:

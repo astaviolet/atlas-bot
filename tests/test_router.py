@@ -32,7 +32,7 @@ class FakeClient:
         self.comportamento = comportamento
         self.chamadas: list[str] = []
 
-    def generate(self, *, system, history, tools, model=None, guild_id=None):
+    def generate(self, *, system, history, tools, model=None, guild_id=None, classe=None):
         self.chamadas.append(model or "?")
         regra = self.comportamento.get(model, "ok")
         if isinstance(regra, Exception):

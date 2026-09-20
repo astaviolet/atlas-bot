@@ -16,6 +16,7 @@ from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .config import Limits
 from .design_check import auditar_servidor
+from .ai.classificacao import classificar
 from .estados import AgentState, RastreadorDeEstado
 from .snapshot_store import SnapshotStore
 from .task import TaskState, estado_da_tarefa
@@ -315,6 +316,19 @@ class Agent:
 
     # ------------------------------------------------------------ laco do modelo
     async def _run_loop(self, text: str, session: Session) -> AgentOutcome:
+        # Spec 107: classificar uma vez, antes da primeira chamada. O tamanho do
+        # contexto entra na conta porque conversa longa muda o que a rota aguenta.
+        classe_tarefa = classificar(
+            text,
+            vai_usar_tools=True,
+            tam_contexto=sum(len(str(m.get("content") or "")) for m in session.history),
+        )
+        self.audit.record(
+            action="ai.task_class",
+            guild_id=self.ctx.guild_id,
+            params={"classe": classe_tarefa.value, "chars_pedido": len(text)},
+            result="ok",
+        )
         self.ctx.refresh()
         system = build_system_prompt(
             self.ctx.snapshot, self.registry, self.policy,
@@ -353,6 +367,7 @@ class Agent:
                     history=session.history,
                     tools=declarations,
                     guild_id=self.ctx.guild_id,
+                    classe=classe_tarefa,
                 ),
                 turn_index=turn,
             )

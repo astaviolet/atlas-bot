@@ -83,7 +83,7 @@ async def run_demo(audit: AuditLog | None = None, *, text: str | None = None) ->
     # o id da categoria so existe depois de criada; o demo resolve na hora
     original_generate = model.generate
 
-    def generate(*, system: str, history: list[dict[str, Any]], tools: list[dict[str, Any]]) -> ModelTurn:
+    def generate(*, system: str, history: list[dict[str, Any]], tools: list[dict[str, Any]], **extra: Any) -> ModelTurn:
         turn = original_generate(system=system, history=history, tools=tools)
         for call in turn.calls:
             if call.args.get("category_id") == "__CAT__":

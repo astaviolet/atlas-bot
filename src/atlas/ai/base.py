@@ -48,6 +48,7 @@ class ModelClient(Protocol):
         tools: list[dict[str, Any]],
         model: str | None = None,
         guild_id: int | None = None,
+        classe: ClasseTarefa | None = None,
     ) -> ModelTurn:
         """Pede um turno ao modelo.
 

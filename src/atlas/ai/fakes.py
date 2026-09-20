@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..errors import AIError
+from .classificacao import ClasseTarefa
 from .base import FunctionCall, ModelTurn
 
 
@@ -30,6 +31,7 @@ class ScriptedModelClient:
         tools: list[dict[str, Any]],
         model: str | None = None,
         guild_id: int | None = None,
+        classe: ClasseTarefa | None = None,
     ) -> ModelTurn:
         self.system_prompts.append(system)
         self.prompts.append([dict(m) for m in history])
@@ -60,6 +62,7 @@ class FailingModelClient:
         tools: list[dict[str, Any]],
         model: str | None = None,
         guild_id: int | None = None,
+        classe: ClasseTarefa | None = None,
     ) -> ModelTurn:
         raise AIError(self.message, user_message=self.user_message)
 
