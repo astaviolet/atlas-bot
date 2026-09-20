@@ -1599,3 +1599,86 @@ def test_regra_de_resposta_exata_esta_no_prompt():
     )
     assert "EXATAMENTE o que foi pedido" in texto
     assert "so os nomes" in texto
+
+
+# ------------------------------------------------ Fase 4: trava por guild (spec 64/65/114)
+def test_duas_threads_no_mesmo_guild_uma_fica_de_fora():
+    """O caso real: bot.py roda cada pedido numa thread do pool."""
+    import threading
+
+    from atlas.concurrency import GuildLocks
+
+    travas = GuildLocks()
+    entrou = threading.Event()
+    solta = threading.Event()
+    resultados = []
+
+    def primeiro():
+        with travas.tentativa(1, 5.0) as pegou:
+            resultados.append(("A", pegou))
+            entrou.set()
+            solta.wait(5)
+
+    t = threading.Thread(target=primeiro)
+    t.start()
+    assert entrou.wait(5), "a thread A nem entrou"
+
+    with travas.tentativa(1, 0.1) as pegou:
+        resultados.append(("B", pegou))
+    solta.set()
+    t.join(5)
+
+    assert ("A", True) in resultados
+    assert ("B", False) in resultados, "a segunda entrada tinha que ser barrada"
+
+
+def test_guilds_diferentes_nao_se_bloqueiam():
+    from atlas.concurrency import GuildLocks
+
+    travas = GuildLocks()
+    with travas.tentativa(1, 1.0) as pegou1:
+        assert pegou1 is True
+        with travas.tentativa(2, 1.0) as pegou2:
+            assert pegou2 is True, "isolamento por guild quebrou (spec 8)"
+
+
+def test_trava_e_liberada_no_final():
+    from atlas.concurrency import GuildLocks
+
+    travas = GuildLocks()
+    with travas.tentativa(1, 1.0) as pegou:
+        assert pegou is True
+    with travas.tentativa(1, 1.0) as pegou:
+        assert pegou is True, "nao liberou depois do bloco"
+    assert travas.ocupada(1) is False
+
+
+def test_trava_liberada_mesmo_com_excecao():
+    from atlas.concurrency import GuildLocks
+
+    travas = GuildLocks()
+    with pytest.raises(RuntimeError):
+        with travas.tentativa(1, 1.0):
+            raise RuntimeError("boom")
+    assert travas.ocupada(1) is False, "excecao deixou a trava presa para sempre"
+
+
+def test_process_devolve_guild_busy_quando_o_guild_esta_travado(monkeypatch):
+    """Spec 114: detectar o conflito e nao misturar planos."""
+    import asyncio
+    from types import SimpleNamespace
+
+    from atlas.audit import AuditLog
+    from atlas.bot import AtlasBot
+    from atlas.config import load_settings
+
+    bot = AtlasBot(load_settings(require_secrets=False), AuditLog(path=None))
+    guild = SimpleNamespace(id=777)
+
+    with bot.guild_locks.tentativa(777, 1.0) as pegou:
+        assert pegou is True
+        outcome = asyncio.run(bot._process(guild, SimpleNamespace(), "oi", SimpleNamespace()))
+
+    assert outcome.blocked == "guild_busy"
+    assert outcome.embeds, "tem que responder alguma coisa, nao ficar em silencio"
+    assert bot.guild_locks.ocupada(777) is False, "a trava ficou presa"

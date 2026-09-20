@@ -13,7 +13,8 @@ from typing import Any
 
 import discord
 
-from .agent import Agent, build_agent
+from .agent import Agent, AgentOutcome, build_agent
+from .concurrency import GuildLocks
 from .ai import build_ai_client
 from .audit import AuditLog
 from .config import Settings
@@ -141,6 +142,7 @@ class AtlasBot(discord.Client):
             settings.limits.rate_refill_per_sec,
         )
         self._ready_embeds = 0
+        self.guild_locks = GuildLocks()
 
     # ---------------------------------------------------------------- events
     async def on_ready(self) -> None:
@@ -284,12 +286,35 @@ class AtlasBot(discord.Client):
     # ------------------------------------------------------------- processamento
     async def _process(self, guild: discord.Guild, message: discord.Message, text: str, session: Any) -> Any:
         loop = asyncio.get_running_loop()
-        agent = self._build_agent(guild, message)
 
-        # o nucleo e sincrono; roda em thread para nao travar o loop do gateway
-        return await loop.run_in_executor(
-            None, lambda: asyncio.run(agent.handle(text, session))
-        )
+        # Uma mudanca estrutural por vez no mesmo servidor. Sem isto dois
+        # pedidos concorrentes leem snapshots diferentes e escrevem um em cima
+        # do outro (spec 64/65). A espera e curta: se nao deu, avisa na hora em
+        # vez de deixar a pessoa olhando o bot "pensar" (spec 114).
+        with self.guild_locks.tentativa(
+            guild.id, self.settings.limits.guild_lock_timeout_seconds
+        ) as pegou:
+            if not pegou:
+                log.warning(
+                    "guild %s ja esta sendo alterado; recusando para nao misturar planos",
+                    guild.id,
+                )
+                return AgentOutcome(
+                    embeds=[
+                        self.builder.warning(
+                            "",
+                            "Estou no meio de outra mudanca neste servidor. "
+                            "Me chama de novo em alguns segundos.",
+                        )
+                    ],
+                    blocked="guild_busy",
+                )
+
+            agent = self._build_agent(guild, message)
+            # o nucleo e sincrono; roda em thread para nao travar o loop do gateway
+            return await loop.run_in_executor(
+                None, lambda: asyncio.run(agent.handle(text, session))
+            )
 
     def _build_agent(self, guild: discord.Guild, message: discord.Message) -> Agent:
         gateway = DiscordGateway(guild, asyncio.get_running_loop())

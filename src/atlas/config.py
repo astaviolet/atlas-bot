@@ -73,6 +73,10 @@ class Limits:
     #: digitado horas depois executava um plano antigo (spec 18/19 da
     #: especificacao mestre). O token ja amarra o plano; faltava o prazo.
     confirmation_ttl_seconds: float = 300.0
+    #: Quanto tempo um pedido espera pela trava do guild antes de desistir e
+    #: avisar. Curto de proposito: ficar 30s em silencio e pior do que dizer
+    #: "estou ocupado" na hora (spec 114).
+    guild_lock_timeout_seconds: float = 2.0
 
     # texto
     max_embed_description: int = 1800

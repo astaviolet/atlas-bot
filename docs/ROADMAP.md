@@ -13,7 +13,7 @@ Regras que valem para todas as fases (spec 2, 3, 160, 165):
 
 ---
 
-## FASE 2 — Integridade de confirmação  ·  risco: alto  ·  esforço: pequeno
+## FASE 2 — Integridade de confirmação  ·  ✅ **FEITA** — `6f153c1`  ·  risco: alto  ·  esforço: pequeno
 
 Fecha o achado 2.1 da auditoria (spec 18, 19, 177).
 
@@ -30,7 +30,7 @@ responder "sim" → deve falhar com segurança. (spec 177)
 
 ---
 
-## FASE 3 — Idempotência  ·  risco: médio  ·  esforço: pequeno
+## FASE 3 — Idempotência  ·  ✅ **FEITA** — `95b93bf`  ·  risco: médio  ·  esforço: pequeno
 
 Fecha o achado 2.2 (spec 13, 178).
 
@@ -43,7 +43,7 @@ Fecha o achado 2.2 (spec 13, 178).
 
 ---
 
-## FASE 4 — Concorrência por guild  ·  risco: médio  ·  esforço: médio
+## FASE 4 — Concorrência por guild  ·  ✅ **FEITA**  ·  risco: médio  ·  esforço: médio
 
 Fecha o achado 2.3 (spec 64, 65, 114).
 
@@ -56,6 +56,20 @@ Fecha o achado 2.3 (spec 64, 65, 114).
 sem estado corrompido, sem interleaving de plano.
 
 ---
+
+### Achado da Fase 4 que mudou a implementação
+
+`bot.py` roda cada pedido assim:
+
+```python
+loop.run_in_executor(None, lambda: asyncio.run(agent.handle(text, session)))
+```
+
+Cada mensagem vai para uma **thread** com um **event loop novo**, e
+`_build_agent` constrói um Agent novo por mensagem. Um `asyncio.Lock` não
+travaria nada (loops diferentes não se enxergam) e uma trava no Agent nasceria
+destrancada a cada pedido. A trava é `threading.Lock` por `guild_id`, em
+`concurrency.py`, fora do Agent.
 
 ## FASE 5 — Qualidade de design garantida em código  ·  risco: alto  ·  esforço: médio
 
