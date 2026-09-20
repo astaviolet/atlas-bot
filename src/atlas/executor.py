@@ -23,6 +23,7 @@ from typing import Any
 from .audit import AuditLog
 from .dependencias import ordenar_por_dependencia
 from .design_check import checar_plano
+from .recuperacao import RegistrarTarefas
 from .flow_control import Backpressure, GuildQuota
 from .snapshot_store import SnapshotStore
 from .errors import ConfirmationRequired, ToolError
@@ -83,11 +84,13 @@ class Executor:
         audit: AuditLog,
         policy: Policy,
         snapshots: SnapshotStore | None = None,
+        tarefas: RegistrarTarefas | None = None,
         flow: Backpressure | None = None,
         quota: GuildQuota | None = None,
     ) -> None:
         self.ctx = ctx
         self.snapshots = snapshots or SnapshotStore()
+        self.tarefas = tarefas or RegistrarTarefas()
         limites = ctx.limits
         self.flow = flow or Backpressure(
             limites.backpressure_max_acoes, limites.backpressure_max_guilds,
@@ -281,7 +284,11 @@ class Executor:
         # porque ha dois caminhos de execucao - o laco normal e o que roda
         # depois do "sim". Instrumentar so um deixava sem snapshot justamente
         # os planos grandes, que sao os que passam por confirmacao.
-        if len(plan.actions) >= self.ctx.limits.snapshot_threshold:
+        # Intencao registrada ANTES de executar (spec 93): se o processo cair no
+        # meio, o restart tem o que comparar com o estado real em vez de
+        # reexecutar as cegas.
+        tarefa_aberta = len(plan.actions) >= self.ctx.limits.snapshot_threshold
+        if tarefa_aberta:
             try:
                 self.snapshots.salvar(
                     self.ctx.guild_id, self.ctx.snapshot,
@@ -290,6 +297,11 @@ class Executor:
                 )
             except Exception:  # noqa: BLE001 - diagnostico nunca impede a operacao
                 log.warning("snapshot nao salvo; seguindo sem ele", exc_info=True)
+            self.tarefas.abrir(
+                self.ctx.guild_id,
+                token=plan.token,
+                acoes=[{"tool": a.tool, "params": a.params} for a in plan.actions],
+            )
 
         results: list[ActionResult] = []
         for action in plan.actions:
@@ -306,6 +318,12 @@ class Executor:
                     result="unverified",
                 )
             results.append(result)
+
+        # Chegou ao fim: a tarefa nao e mais candidata a recuperacao (spec 93).
+        # Se o processo cair antes daqui, ela fica aberta de proposito.
+        if tarefa_aberta:
+            self.tarefas.fechar(self.ctx.guild_id, plan.token)
+
         return results
 
     # -------------------------------------------------------------- dispatch
