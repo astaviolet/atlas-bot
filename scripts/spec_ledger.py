@@ -197,7 +197,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),
     27: (PRONTA, "tests/test_design_system.py", "domínios diferentes dão estruturas diferentes"),
-    32: (PARCIAL, "src/atlas/catalogo.py", "estrutura existe; a FONTE da spec é 'referências pesquisadas' e não houve pesquisa - padrões estão NÃO VERIFICADO"),
+    32: (PRONTA, "tests/test_catalogo.py", "pesquisa feita: 7 padrões com fonte real (memvers, space-node, peakbot, siift, noriaflow) em MEDIUM; o que a pesquisa não cobriu segue UNKNOWN e um teste trava isso"),
     33: (PRONTA, "tests/test_catalogo.py", "armazena princípios, não templates; cresce por feedback"),
     35: (PRONTA, "tests/test_design_system.py", "13 estilos visuais"),
     36: (PRONTA, "tests/test_design_system.py", "nomenclatura uniforme, sem misturar"),

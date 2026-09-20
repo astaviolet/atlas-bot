@@ -40,7 +40,7 @@ Seções na spec: **188**
 | 29 | PESQUISA POR TEMA | FORA DE ESCOPO | `decisão` | pesquisa na web |
 | 30 | PESQUISA POR ARQUITETURA | FORA DE ESCOPO | `decisão` | pesquisa na web |
 | 31 | NÃO COPIAR SERVIDORES | FORA DE ESCOPO | `decisão` | pesquisa na web |
-| 32 | CATÁLOGO DE PADRÕES | PARCIAL | `src/atlas/catalogo.py` | estrutura existe; a FONTE da spec é 'referências pesquisadas' e não houve pesquisa - padrões estão NÃO VERIFICADO |
+| 32 | CATÁLOGO DE PADRÕES | PRONTA | `tests/test_catalogo.py` | pesquisa feita: 7 padrões com fonte real (memvers, space-node, peakbot, siift, noriaflow) em MEDIUM; o que a pesquisa não cobriu segue UNKNOWN e um teste trava isso |
 | 33 | EVOLUÇÃO DO CATÁLOGO | PRONTA | `tests/test_catalogo.py` | armazena princípios, não templates; cresce por feedback |
 | 34 | IDENTIDADE TEMÁTICA | PRONTA | `tests/test_design_system.py` | canais_do_tema acrescenta canal em código (zero build, survival, facções), com teto de 2 e sem entrar em porte pequeno |
 | 35 | DIREÇÃO VISUAL | PRONTA | `tests/test_design_system.py` | 13 estilos visuais |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **140**
-- PARCIAL: **3**
+- PRONTA: **141**
+- PARCIAL: **2**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**

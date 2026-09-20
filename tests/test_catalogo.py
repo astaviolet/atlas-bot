@@ -34,30 +34,48 @@ def test_todo_padrao_alto_tem_fonte_de_verdade():
                 assert "NAO VERIFICADO" in _sem_acento(p.fonte), p.id
 
 
-def test_hipotese_de_comunidade_nao_passa_por_conhecimento():
-    """O exemplo da spec 32 existe no catalogo, mas como hipotese - porque
-    pesquisa web esta fora do escopo e inventar confianca seria pior."""
+def test_lfg_passou_a_ter_fonte_de_verdade():
+    """Pesquisa feita: space-node e memvers recomendam #lfg para comunidade de
+    jogo. Saiu de UNKNOWN, mas ficou em MEDIUM - guia de terceiro nao e
+    documentacao oficial, e promover para HIGH seria inflar confianca."""
     c = Catalogo()
     p = c.get("comunidade.competitiva_separa_lfg")
     assert p is not None, "o principio tem que estar catalogado"
-    assert p.confianca == Confianca.UNKNOWN
-    assert "NAO VERIFICADO" in _sem_acento(p.fonte)
+    assert p.confianca == Confianca.MEDIUM
+    assert "space-node" in p.fonte
+
+
+def test_hipotese_sem_fonte_continua_unknown():
+    """A guarda continua valendo: o que a pesquisa NAO cobriu segue UNKNOWN e
+    continua dizendo isso na cara. Verificar uma hipotese nao autoriza marcar as
+    outras como verificadas."""
+    c = Catalogo()
+    for id_ in ("comunidade.survival_separa_mundos", "comunidade.rp_separa_faccoes"):
+        p = c.get(id_)
+        assert p is not None, f"{id_} tem que estar catalogado"
+        assert p.confianca == Confianca.UNKNOWN, f"{id_} subiu sem fonte"
+        assert "NAO VERIFICADO" in _sem_acento(p.fonte)
 
 
 def test_filtro_de_confianca_tira_hipotese_de_decisao_critica():
-    """Spec 119: informacao de confianca baixa nao entra em decisao critica."""
+    """Spec 119: informacao de confianca baixa nao entra em decisao critica.
+
+    O exemplo mudou de LFG para Minecraft de proposito: LFG ganhou fonte na
+    pesquisa e subiu para MEDIUM, entao nao serve mais de exemplo do que o
+    filtro barra. A hipotese de Minecraft segue UNKNOWN e continua servindo.
+    """
     c = Catalogo()
     # contexto dado de proposito: sem contexto os padroes com aplicabilidade
     # ficam de fora das duas listas e a comparacao nao mede nada
-    criticos = c.utilizaveis("gaming competitivo", confianca_minima=Confianca.MEDIUM)
+    criticos = c.utilizaveis("minecraft survival", confianca_minima=Confianca.MEDIUM)
     assert all(p.confianca in (Confianca.HIGH, Confianca.MEDIUM) for p in criticos)
-    assert all("comunidade." not in p.id for p in criticos), \
-        "hipotese de comunidade nao pode entrar em decisao critica"
+    assert not any(p.id == "comunidade.survival_separa_mundos" for p in criticos), \
+        "hipotese sem fonte nao pode entrar em decisao critica"
 
-    todos = c.utilizaveis("gaming competitivo", confianca_minima=Confianca.UNKNOWN)
+    todos = c.utilizaveis("minecraft survival", confianca_minima=Confianca.UNKNOWN)
     assert len(todos) > len(criticos), "o filtro tem que fazer diferenca"
     assert {p.id for p in todos} - {p.id for p in criticos} == {
-        "comunidade.competitiva_separa_lfg",
+        "comunidade.survival_separa_mundos",
     }, "a diferenca entre os dois filtros tem que ser exatamente a hipotese"
 
 
@@ -80,11 +98,12 @@ def test_principios_sem_aplicabilidade_valem_para_tudo():
 def test_promover_exige_fonte():
     """Spec 76: subir confianca sem fonte nao vale."""
     c = Catalogo()
-    assert not c.promover("comunidade.competitiva_separa_lfg", Confianca.HIGH, "  ")
-    assert c.get("comunidade.competitiva_separa_lfg").confianca == Confianca.UNKNOWN
+    # exemplo trocado para o que segue UNKNOWN (LFG ganhou fonte na pesquisa)
+    assert not c.promover("comunidade.rp_separa_faccoes", Confianca.HIGH, "  ")
+    assert c.get("comunidade.rp_separa_faccoes").confianca == Confianca.UNKNOWN
 
-    assert c.promover("comunidade.competitiva_separa_lfg", Confianca.MEDIUM,
-                      "github.com/exemplo/servidores-esports")
+    assert c.promover("comunidade.rp_separa_faccoes", Confianca.MEDIUM,
+                      "github.com/exemplo/servidores-rp")
     p = c.get("comunidade.competitiva_separa_lfg")
     assert p.confianca == Confianca.MEDIUM and p.verificado_em
 

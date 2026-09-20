@@ -125,18 +125,61 @@ _SEMENTE: list[Padrao] = [
     _p("design.canal_precisa_de_funcao",
        "Canal sem função clara não deve ser criado; preencher espaço não é "
        "organização.",
-       [], Confianca.MEDIUM, "spec 38/79 do projeto (não verificado por pesquisa)"),
+       [], Confianca.MEDIUM,
+       "space-node.net/blog/discord-server-templates-layout-guide-2026 "
+       "('empty channels make a server feel dead') + memvers.com "
+       "('an active server with 10 channels beats a dead one with 40')"),
     _p("design.escala_define_granularidade",
-       "Arquitetura depende do tamanho da comunidade: comunidade pequena com "
-       "dezenas de canais é ruído, não organização.",
-       [], Confianca.MEDIUM, "spec 44 do projeto (não verificado por pesquisa)"),
+       "Arquitetura depende do tamanho da comunidade: até 500 membros, 8 a 15 "
+       "canais em 4 a 5 categorias; de 500 a 5 mil, 15 a 25; acima de 5 mil, 20 "
+       "a 35 com canais de fórum. O que funciona para 50 mil não funciona para "
+       "50.",
+       [], Confianca.MEDIUM,
+       "memvers.com/blog/discord-server-setup-guide-2026 (tabela de canais por "
+       "tamanho e 'copying big servers exactly - what works for 50K doesn't "
+       "work for 50')"),
+    _p("design.poucos_canais_por_categoria",
+       "Cerca de 4 a 5 canais por categoria; mais que isso vira parede de texto "
+       "e a seção deixa de ser navegável.",
+       [], Confianca.MEDIUM,
+       "siift.ai/blog/channels-discord, citando orientação de comunidade do "
+       "Discord (fonte de segunda mão, não o documento oficial)"),
+    _p("design.ordem_das_categorias",
+       "Ordem de cima para baixo: informação/regras, comunidade, temas "
+       "específicos, voz, equipe. A lista fica mais específica conforme o membro "
+       "desce.",
+       [], Confianca.MEDIUM,
+       "peakbot.pro/blog/how-to-organize-discord-channels-and-categories e "
+       "memvers.com/blog/discord-server-setup-guide-2026 (guias de terceiros "
+       "concordando entre si, não documento oficial do Discord)"),
+    _p("design.info_somente_leitura",
+       "Boas-vindas, regras e avisos devem ser somente leitura: o membro lê, não "
+       "posta.",
+       [], Confianca.MEDIUM,
+       "peakbot.pro ('members should read them, not post in them') e "
+       "memvers.com ('Read-only. First thing new members see')"),
+    _p("design.hierarquia_de_cargos",
+       "Hierarquia usual: dono, admin (1 a 2 pessoas), moderador, apoiador/VIP, "
+       "membro.",
+       [], Confianca.MEDIUM,
+       "memvers.com/blog/discord-server-setup-guide-2026 (passo 4)"),
+
+    _p("design.onboarding_minimo",
+       "Onboarding mínimo que funciona: boas-vindas, uma etapa de regra ou "
+       "verificação, uma escolha de cargo e um canal óbvio de conversa. Cada "
+       "etapa deve destravar acesso ou ajudar a achar conversa relevante.",
+       [], Confianca.MEDIUM,
+       "noriaflow.com/docs/discord-server-onboarding e "
+       "memvers.com/blog/discord-server-setup-guide-2026 (passo 7)"),
 
     # --- hipoteses de comunidade: NAO verificadas, marcadas como tal ---------
     _p("comunidade.competitiva_separa_lfg",
-       "Comunidades competitivas costumam separar LFG, competitivo, resultados "
-       "e recrutamento.",
-       ["gaming", "competitivo", "esports", "clã"], Confianca.UNKNOWN,
-       "NÃO VERIFICADO — pesquisa web fora do escopo por decisão do usuário"),
+       "Comunidades de jogo costumam ter canal de LFG para juntar partida; "
+       "competitivas separam também competitivo, resultados e recrutamento.",
+       ["gaming", "competitivo", "esports", "clã"], Confianca.MEDIUM,
+       "space-node.net ('add an #lfg channel for gaming communities to connect "
+       "players') e memvers.com ('Gaming: #lfg, #clips'). A separação de "
+       "resultados e recrutamento continua sem fonte direta."),
     _p("comunidade.survival_separa_mundos",
        "Comunidades de Minecraft costumam separar por mundo/servidor e ter área "
        "de construções e suporte.",
