@@ -254,6 +254,9 @@ class AtlasBot(discord.Client):
             policy=policy,
             limits=self.settings.limits,
             snapshot=snapshot,
+            # vem de message.channel, ou seja: contexto real do Discord.
+            # Nunca de parametro enviado pelo modelo.
+            source_channel_id=message.channel.id if message is not None else None,
         )
         queue = ActionQueue(guild_id=guild.id, limiter=self.limiter, audit=self.audit, dispatch=lambda a: None)
         agent = build_agent(

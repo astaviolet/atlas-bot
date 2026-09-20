@@ -26,6 +26,11 @@ class ToolContext:
     limits: Limits
     snapshot: GuildSnapshot
     confirmations: set[str] = field(default_factory=set)
+    #: Canal de onde veio a mensagem do usuario. Vem do contexto real da
+    #: interacao do Discord, nunca de parametro do modelo. Sem isso o agente
+    #: nao tem como resolver "este canal", "aqui", "esse" - e fica pedindo o id
+    #: de volta ou, pior, chutando um canal errado.
+    source_channel_id: int | None = None
 
     def refresh(self) -> GuildSnapshot:
         self.snapshot = self.gateway.snapshot()

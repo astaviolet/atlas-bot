@@ -1139,3 +1139,124 @@ def test_snapshot_de_membro_entr_como_target_member():
     convertido = DiscordGateway._channel(canal)
     assert convertido.overwrites[0].target_type == "member"
     assert discord.Permissions(convertido.overwrites[0].allow).view_channel is True
+
+
+# ------------------------------- o agente sabe onde a conversa esta acontecendo
+def _prompt(source_channel_id):
+    from atlas.policy import ActionBudget, Policy
+    from atlas.prompts import build_system_prompt
+    from atlas.testing.fake_gateway import FakeGateway
+    from atlas.tools import build_registry
+
+    gw = FakeGateway()
+    gw.seed_gamer_layout()
+    snap = gw.snapshot()
+    policy = Policy(
+        guild_id=gw.guild_id,
+        budget=ActionBudget(max_actions=60, max_creates=40, max_deletes=25),
+    )
+    return snap, build_system_prompt(
+        snap, build_registry(), policy, source_channel_id=source_channel_id
+    )
+
+
+def test_prompt_informa_o_canal_atual_para_resolver_este_canal():
+    """Regressao real: "apague todos os canais e deixe apenas esse".
+
+    O modelo nao recebia o canal de origem, entao respondia "qual canal voce
+    quer manter?" - e depois chutava um canal que nem era o da conversa.
+    """
+    snap, texto = _prompt(None)          # primeiro pega um canal de verdade
+    alvo = snap.channels[0]
+
+    _, texto = _prompt(alvo.id)
+    assert f"canal atual: #{alvo.name} (id {alvo.id})" in texto
+    assert "Nao chute e nao pergunte de volta" in texto
+
+
+def test_prompt_sem_canal_de_origem_manda_perguntar_em_vez_de_chutar():
+    _, texto = _prompt(None)
+    assert "canal de origem desconhecido" in texto
+    assert "pergunte qual e em vez de chutar" in texto
+
+
+def test_bot_passa_o_canal_da_mensagem_para_o_contexto(monkeypatch):
+    """O id tem que vir de message.channel - contexto real do Discord, nunca
+    de um parametro que o modelo possa inventar."""
+    import asyncio
+    import types
+
+    from atlas.audit import AuditLog
+    from atlas.bot import AtlasBot
+    from atlas.config import load_settings
+    from atlas.testing.fake_gateway import FakeGateway
+
+    settings = load_settings(require_secrets=False)
+    bot = AtlasBot(settings, AuditLog(path=None))
+
+    capturado = {}
+    import atlas.bot as bot_mod
+
+    original_ctx = bot_mod.ToolContext
+
+    def espiao_ctx(**kw):
+        capturado.update(kw)
+        return original_ctx(**kw)
+
+    # gateway stub: devolve um snapshot de verdade sem tocar no guild falso
+    fake_gw = FakeGateway()
+    fake_gw.seed_gamer_layout()
+
+    class GatewayStub:
+        def __init__(self, guild, loop):
+            pass
+
+        def snapshot(self):
+            return fake_gw.snapshot()
+
+    monkeypatch.setattr(bot_mod, "ToolContext", espiao_ctx)
+    monkeypatch.setattr(bot_mod, "DiscordGateway", GatewayStub)
+
+    canal = types.SimpleNamespace(id=1234567890, name="atlas-config")
+    guild = types.SimpleNamespace(id=1)
+    mensagem = types.SimpleNamespace(channel=canal)
+
+    async def roda():
+        bot._build_agent(guild, mensagem)
+
+    asyncio.run(roda())
+
+    assert capturado.get("source_channel_id") == 1234567890, (
+        "o agente precisa saber de onde veio a mensagem para resolver 'este canal'"
+    )
+
+
+def test_agente_repassa_o_canal_de_origem_ao_prompt(harness):
+    """Elo que a mutacao M1 mostrou descoberto: ToolContext -> prompt.
+
+    Sem isto o canal chega no contexto e morre la: o modelo continua sem saber
+    onde a conversa acontece, que e exatamente o bug de "deixe apenas esse".
+    """
+    from conftest import final
+
+    h = harness([final("ok")])
+    alvo = h.gateway.snapshot().channels[0]
+    h.ctx.source_channel_id = alvo.id
+
+    h.ask("oi")
+
+    assert h.model.system_prompts, "o modelo nao foi chamado"
+    assert f"canal atual: #{alvo.name} (id {alvo.id})" in h.model.system_prompts[0], (
+        "o agente montou o prompt sem o canal de origem"
+    )
+
+
+def test_agente_sem_canal_de_origem_avisa_o_modelo(harness):
+    from conftest import final
+
+    h = harness([final("ok")])
+    h.ctx.source_channel_id = None
+
+    h.ask("oi")
+
+    assert "canal de origem desconhecido" in h.model.system_prompts[0]

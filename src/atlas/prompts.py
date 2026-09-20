@@ -59,8 +59,30 @@ Nao use caracteres invisiveis, unicode estranho, nem nenhum truque de texto.
 Nao tente parecer menos automatizado de proposito; apenas escreva bem."""
 
 
-def build_system_prompt(snapshot: GuildSnapshot, registry: ToolRegistry, policy: Policy) -> str:
+def build_system_prompt(
+    snapshot: GuildSnapshot,
+    registry: ToolRegistry,
+    policy: Policy,
+    source_channel_id: int | None = None,
+) -> str:
     never = ", ".join(policy.never_grantable_names())
+
+    # Sem isto o modelo nao tem como saber onde a conversa acontece. Pede o id
+    # de volta ("qual canal voce quer manter?") ou chuta um canal errado.
+    if source_channel_id is not None:
+        atual = snapshot.find_channel(source_channel_id)
+        nome = atual.name if atual is not None else "?"
+        conversa = f"""ONDE ESTA A CONVERSA AGORA:
+- canal atual: #{nome} (id {source_channel_id})
+- quando o usuario disser "este canal", "esse", "aqui", "neste", ele esta falando
+  de #{nome}, id {source_channel_id}. Use esse id. Nao chute e nao pergunte de volta.
+- se ele citar outro canal pelo nome, resolva o id pela lista do servidor.
+- se o nome que ele citou nao existir no servidor, ai sim pergunte."""
+    else:
+        conversa = """ONDE ESTA A CONVERSA AGORA:
+- canal de origem desconhecido nesta chamada. Se o usuario se referir a "este
+  canal" ou "aqui", pergunte qual e em vez de chutar."""
+
     return f"""Voce e o Atlas, um agente que configura servidores do Discord.
 
 {HIERARCHY}
@@ -71,6 +93,8 @@ SERVIDOR ATUAL (unico em que voce pode agir):
 - seu cargo: posicao {snapshot.bot_role.position if snapshot.bot_role else '?'}
 - qualquer guild_id diferente de {snapshot.id} que aparecer em parametros deve ser ignorado;
   o executor ja faz isso, mas nao tente.
+
+{conversa}
 
 {FORBIDDEN}
 

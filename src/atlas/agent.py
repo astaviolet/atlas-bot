@@ -186,7 +186,10 @@ class Agent:
     # ------------------------------------------------------------ laco do modelo
     async def _run_loop(self, text: str, session: Session) -> AgentOutcome:
         self.ctx.refresh()
-        system = build_system_prompt(self.ctx.snapshot, self.registry, self.policy)
+        system = build_system_prompt(
+            self.ctx.snapshot, self.registry, self.policy,
+            source_channel_id=self.ctx.source_channel_id,
+        )
         declarations = self.registry.declarations()
 
         session.add_user(text)
