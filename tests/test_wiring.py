@@ -1682,3 +1682,43 @@ def test_process_devolve_guild_busy_quando_o_guild_esta_travado(monkeypatch):
     assert outcome.blocked == "guild_busy"
     assert outcome.embeds, "tem que responder alguma coisa, nao ficar em silencio"
     assert bot.guild_locks.ocupada(777) is False, "a trava ficou presa"
+
+
+# ------------------------------------------------- deadline por chamada de tool
+def test_toda_chamada_do_gateway_tem_teto_de_tempo():
+    """Correção de uma afirmação falsa minha: eu tinha listado "sem deadline por
+    tool individual" como risco aberto. Não é verdade — o gateway tem UM único
+    ponto de ponte (_run) e ele passa timeout em run_coroutine_threadsafe. Como
+    é ponto único, toda tool herda o teto. Este teste trava as duas coisas: se
+    alguém abrir uma segunda ponte sem timeout, ou tirar o timeout, quebra.
+
+    Sem isso uma tool travada segura a guild inteira: a trava é por guild, então
+    um pedido parado bloqueia os outros.
+    """
+    from pathlib import Path
+
+    import atlas.discord_gateway as gw
+
+    fonte = Path(gw.__file__).read_text(encoding="utf-8")
+    assert fonte.count("run_coroutine_threadsafe") == 2, (
+        "esperava 1 uso real + 1 menção na docstring; se apareceu outra ponte, "
+        "ela tambem precisa de timeout"
+    )
+    assert ".result(timeout=_TIMEOUT)" in fonte, "a ponte perdeu o teto de tempo"
+    assert gw._TIMEOUT > 0, "timeout tem que ser positivo"
+    assert gw._TIMEOUT <= 60.0, (
+        f"timeout de {gw._TIMEOUT}s é grande demais: com 3 tentativas de uma "
+        "tool isso vira minutos com a guild travada"
+    )
+
+
+def test_timeout_do_gateway_vira_erro_com_mensagem_de_usuario():
+    """Estourar o teto não pode vazar exceção crua para o modelo."""
+    from pathlib import Path
+
+    import atlas.discord_gateway as gw
+
+    fonte = Path(gw.__file__).read_text(encoding="utf-8")
+    assert "TimeoutError" in fonte or "concurrent.futures" in fonte, (
+        "o timeout do .result() levanta TimeoutError; se nao e tratado, vaza cru"
+    )
