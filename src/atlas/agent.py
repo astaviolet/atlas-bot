@@ -16,6 +16,7 @@ from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .config import Limits
 from .design_check import auditar_servidor
+from .snapshot_store import SnapshotStore
 from .task import TaskState, estado_da_tarefa
 from .embeds import EmbedBuilder, EmbedSpec
 from .errors import AIError, AtlasError, ConfirmationRequired
@@ -396,8 +397,12 @@ def build_agent(
     policy: Policy,
     limits: Limits,
     queue: ActionQueue,
+    snapshots: SnapshotStore | None = None,
 ) -> Agent:
-    executor = Executor(ctx=ctx, registry=registry, queue=queue, audit=audit, policy=policy)
+    executor = Executor(
+        ctx=ctx, registry=registry, queue=queue, audit=audit, policy=policy,
+        snapshots=snapshots,
+    )
     return Agent(
         ctx=ctx,
         registry=registry,

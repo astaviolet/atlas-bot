@@ -81,6 +81,8 @@ class Limits:
     #: Montar 20 canais de uma vez muda o servidor inteiro; a pessoa tem que ver
     #: o plano antes, nao depois.
     build_confirm_threshold: int = 15
+    #: A partir de quantas acoes o plano ganha snapshot logico antes de executar.
+    snapshot_threshold: int = 5
 
     # texto
     max_embed_description: int = 1800

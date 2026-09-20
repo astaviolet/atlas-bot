@@ -22,6 +22,7 @@ from typing import Any
 
 from .audit import AuditLog
 from .design_check import checar_plano
+from .snapshot_store import SnapshotStore
 from .errors import ConfirmationRequired, ToolError
 from .models import GuildSnapshot
 from .policy import DESTRUCTIVE_TOOLS, Policy
@@ -79,8 +80,10 @@ class Executor:
         queue: ActionQueue,
         audit: AuditLog,
         policy: Policy,
+        snapshots: SnapshotStore | None = None,
     ) -> None:
         self.ctx = ctx
+        self.snapshots = snapshots or SnapshotStore()
         self.registry = registry
         self.queue = queue
         self.audit = audit
@@ -220,6 +223,20 @@ class Executor:
 
     # --------------------------------------------------------------- execucao
     def execute(self, plan: PreparedPlan) -> list[ActionResult]:
+        # Snapshot logico ANTES de mudar (spec 86). Aqui, e nao no agente,
+        # porque ha dois caminhos de execucao - o laco normal e o que roda
+        # depois do "sim". Instrumentar so um deixava sem snapshot justamente
+        # os planos grandes, que sao os que passam por confirmacao.
+        if len(plan.actions) >= self.ctx.limits.snapshot_threshold:
+            try:
+                self.snapshots.salvar(
+                    self.ctx.guild_id, self.ctx.snapshot,
+                    autor=self.ctx.source_author_name or "?",
+                    resumo=plan.dry_run(),
+                )
+            except Exception:  # noqa: BLE001 - diagnostico nunca impede a operacao
+                log.warning("snapshot nao salvo; seguindo sem ele", exc_info=True)
+
         results: list[ActionResult] = []
         for action in plan.actions:
             result = self.queue.run_one(action)
