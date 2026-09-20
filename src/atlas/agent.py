@@ -140,6 +140,20 @@ class Agent:
 
     # ------------------------------------------------------------ confirmacao
     async def _resolve_confirmation(self, text: str, session: Session) -> AgentOutcome:
+        # Prazo antes de qualquer outra coisa: um "sim" que chegou tarde demais
+        # nao executa nada, nem mesmo para cancelar. Descarta e pede de novo.
+        if session.confirmacao_vencida():
+            session.pending = None
+            return AgentOutcome(
+                embeds=[
+                    self.builder.warning(
+                        "Passou do prazo",
+                        "A confirmacao expirou, entao nao fiz nada. Me pede de novo.",
+                    )
+                ],
+                blocked="confirmation_expired",
+            )
+
         pending = session.pending
         assert pending is not None
         verdict = classify_reply(text)
@@ -249,7 +263,10 @@ class Agent:
             deletes = plan.counts.get("deletes", 0)
             if deletes >= self.policy.destructive_confirm_threshold:
                 summary = "\n".join(f"- {l}" for l in plan.destructive_labels)
-                session.pending = PendingConfirmation(token=plan.token, calls=calls, summary=summary)
+                session.pending = PendingConfirmation(
+                    token=plan.token, calls=calls, summary=summary,
+                    created_at=session.clock(),
+                )
                 return AgentOutcome(
                     embeds=[confirmation_embed(self.builder, summary, deletes)],
                     blocked="confirmation_required",

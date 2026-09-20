@@ -69,6 +69,10 @@ class Limits:
     #: max_turns x ai_timeout_seconds (25 x 60s = 25 minutos) e o usuario
     #: ficava sem resposta. Passou do prazo, o agente entrega o que ja fez.
     deadline_seconds: float = 90.0
+    #: Uma confirmacao pendente nao pode viver para sempre. Sem isto, um "sim"
+    #: digitado horas depois executava um plano antigo (spec 18/19 da
+    #: especificacao mestre). O token ja amarra o plano; faltava o prazo.
+    confirmation_ttl_seconds: float = 300.0
 
     # texto
     max_embed_description: int = 1800

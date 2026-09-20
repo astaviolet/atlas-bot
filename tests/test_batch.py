@@ -155,3 +155,75 @@ def test_memoria_de_contexto_entre_mensagens(harness):
     assert outcome.results[0].ok is True
     assert h.gateway.roles[rid].permissions & 16  # MANAGE_CHANNELS
     assert h.session.recall("role", "Moderador") == str(rid)
+
+
+# ------------------------------------------- Fase 2: confirmacao tem prazo
+def test_confirmacao_vencida_nao_executa(harness):
+    """Spec 177: criar confirmacao, esperar expirar, clicar. Tem que falhar.
+
+    Antes da Fase 2 `session.py` nao tinha nenhuma nocao de tempo: um "sim"
+    digitado horas depois executava o plano antigo num servidor que pode ter
+    mudado completamente nesse meio tempo.
+    """
+    alvos = [
+        IDS["ch_regras_%d" % IDS["cat_informacoes"]],
+        IDS["ch_anuncios_%d" % IDS["cat_informacoes"]],
+        IDS["ch_regras_%d" % IDS["cat_comunidade"]],
+    ]
+    h = harness([
+        turn(*[("delete_channel", {"channel_id": str(a)}) for a in alvos]),
+        final("apagado"),
+    ])
+    agora = [1000.0]
+    h.session.clock = lambda: agora[0]
+
+    h.ask("apaga esses tres")
+    assert h.session.pending is not None, "o teste precisa chegar no pending"
+
+    agora[0] += h.limits.confirmation_ttl_seconds + 1  # passou do prazo
+    outcome = h.ask("sim")
+
+    assert outcome.blocked == "confirmation_expired"
+    assert h.session.pending is None, "pendencia velha tem que ser descartada"
+    for alvo in alvos:
+        assert alvo in h.gateway.channels, "confirmacao vencida nao pode apagar nada"
+
+
+def test_confirmacao_dentro_do_prazo_executa(harness):
+    """Guarda contra a correcao virar bloqueio permanente."""
+    alvos = [
+        IDS["ch_regras_%d" % IDS["cat_informacoes"]],
+        IDS["ch_anuncios_%d" % IDS["cat_informacoes"]],
+        IDS["ch_regras_%d" % IDS["cat_comunidade"]],
+    ]
+    h = harness([
+        turn(*[("delete_channel", {"channel_id": str(a)}) for a in alvos]),
+        final("apagado"),
+    ])
+    agora = [1000.0]
+    h.session.clock = lambda: agora[0]
+
+    h.ask("apaga esses tres")
+    agora[0] += 10  # bem dentro do prazo
+    h.ask("sim")
+
+    for alvo in alvos:
+        assert alvo not in h.gateway.channels, "dentro do prazo tem que executar"
+
+
+def test_prazo_zero_desliga_a_expiracao(harness):
+    import dataclasses
+
+    from atlas.session import PendingConfirmation
+
+    h = harness([])
+    h.session.limits = dataclasses.replace(h.limits, confirmation_ttl_seconds=0.0)
+
+    h.session.pending = PendingConfirmation(token="t", calls=[], summary="s", created_at=0.0)
+    h.session.clock = lambda: 999_999.0
+    assert h.session.confirmacao_vencida() is False
+
+
+def test_sem_pendencia_nao_esta_vencida(harness):
+    h = harness([])
+    assert h.session.confirmacao_vencida() is False

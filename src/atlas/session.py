@@ -7,8 +7,9 @@ criado na mensagem anterior. Ela nunca carrega outro guild_id.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 from .config import Limits
 
@@ -21,6 +22,9 @@ class PendingConfirmation:
     token: str
     calls: list[dict[str, Any]]
     summary: str
+    #: Quando o pedido de confirmacao foi feito, no relogio da sessao.
+    #: Sem isto nao ha como saber se o "sim" chegou tarde demais.
+    created_at: float = 0.0
 
 
 @dataclass
@@ -30,7 +34,23 @@ class Session:
     limits: Limits
     history: list[dict[str, Any]] = field(default_factory=list)
     pending: PendingConfirmation | None = None
+    #: Injetavel para os testes conseguirem avancar o tempo sem dormir.
+    clock: Callable[[], float] = time.monotonic
     last_created: dict[str, str] = field(default_factory=dict)
+
+    # -- confirmacao ----------------------------------------------------------
+    def confirmacao_vencida(self) -> bool:
+        """True se ha um pedido pendente ja fora do prazo.
+
+        Descartar em vez de executar: um plano montado ha dez minutos descreve
+        um servidor que pode nao existir mais.
+        """
+        if self.pending is None:
+            return False
+        ttl = self.limits.confirmation_ttl_seconds
+        if ttl <= 0:
+            return False  # 0 ou negativo desliga o prazo
+        return (self.clock() - self.pending.created_at) > ttl
 
     # -- memoria ------------------------------------------------------------
     def remember(self, kind: str, key: str, value: str) -> None:
