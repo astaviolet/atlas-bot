@@ -96,7 +96,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     121: (PRONTA, "tests/test_observability.py", "painel avisa IA morta, pool degradado, e diz quando está bem"),
     122: (PRONTA, "tests/test_alertas.py", "os seis gatilhos da spec: erro elevado, pool fora, fila acumulada, 429, falhas repetidas, tarefas presas"),
     39: (PRONTA, "tests/test_design_system.py", "texto, voz, anúncio e fórum; tem teste que compara com o enum real da tool"),
-    34: (PARCIAL, "src/atlas/design.py", "tema influencia vocabulário via proposta no prompt, mas não muda estrutura em código - a spec pede mais que isso"),
+    34: (PRONTA, "tests/test_design_system.py", "canais_do_tema acrescenta canal em código (zero build, survival, facções), com teto de 2 e sem entrar em porte pequeno"),
     45: (PRONTA, "tests/test_reforma.py", "audita nomenclatura mista, categoria demais, admin demais + os defeitos que design_check já achava"),
     46: (PRONTA, "tests/test_reforma.py", "nada é excluído: sobra vira suspeita para decisão humana; canal padrão é preservado"),
     84: (PRONTA, "tests/test_reforma.py", "AUDITAR → MAPEAR → PLANEJAR → MOSTRAR IMPACTO; não executa"),

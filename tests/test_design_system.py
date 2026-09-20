@@ -370,3 +370,63 @@ def test_varredura_toda_combinacao_tem_nota_minima():
             if nota < 8.0:
                 problemas.append(f"{dominio.value}/{porte.value}: {nota}")
     assert not problemas, "\n".join(problemas[:10])
+
+
+# ------------------------------------------------- spec 34: tema afeta estrutura
+def _nomes(tema, dominio=Dominio.GAMING_COMPETITIVO, porte=Porte.MEDIO):
+    from atlas.design_system import projetar
+
+    return [n.lower() for n in projetar(
+        Briefing(tema=tema, dominio=dominio, porte=porte)
+    ).nomes_de_canal()]
+
+
+def test_tema_acrescenta_canal_de_fortnite():
+    nomes = _nomes("servidor de fortnite")
+    assert any("zero build" in n for n in nomes)
+
+
+def test_tema_acrescenta_canal_de_minecraft():
+    nomes = _nomes("servidor de minecraft", Dominio.GAMING_CASUAL)
+    assert any("survival" in n for n in nomes)
+
+
+def test_tema_acrescenta_canal_de_gta_rp():
+    nomes = _nomes("servidor de gta rp", Dominio.RP)
+    assert any("facções" in n for n in nomes or any("faccoes" in n for n in nomes))
+
+
+def test_tema_desconhecido_nao_acrescenta_nada():
+    from atlas.design_system import canais_do_tema
+
+    assert canais_do_tema("clube de truco da esquina", Porte.MEDIO) == []
+
+
+def test_tema_nao_entra_em_servidor_pequeno():
+    """Comunidade de 20 pessoas com canal de torneio é canal morto (spec 44)."""
+    nomes = _nomes("servidor de fortnite", porte=Porte.PEQUENO)
+    assert not any("zero build" in n for n in nomes)
+
+
+def test_tema_nao_duplica_o_que_a_base_ja_tem():
+    """Se a base já criou 'torneios', o tema não cria outro."""
+    from atlas.design_system import _TEMA_CANAIS, Briefing, Porte, projetar
+
+    assert any(n == "torneios" for n, _, _ in _TEMA_CANAIS["fortnite"])
+    arq = projetar(Briefing(tema="fortnite", dominio=Dominio.GAMING_COMPETITIVO,
+                            porte=Porte.GRANDE))
+    nomes = [n.lower() for n in arq.nomes_de_canal()]
+    torneios = [n for n in nomes if "torneios" in n]
+    assert len(torneios) <= 1, f"duplicou torneios: {torneios}"
+
+
+def test_tema_tem_teto_de_canais():
+    """Spec 80: 'não criar tudo obrigatoriamente'."""
+    from atlas.design_system import (
+        _MAX_CANAIS_DE_TEMA,
+        _TEMA_CANAIS,
+        canais_do_tema,
+    )
+
+    for tema in _TEMA_CANAIS:
+        assert len(canais_do_tema(tema, Porte.GRANDE)) <= _MAX_CANAIS_DE_TEMA

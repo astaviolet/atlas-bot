@@ -514,6 +514,75 @@ _ONBOARDING: dict[Dominio, list[str]] = {
 }
 
 
+#: Vocabulário de tema (spec 34, 80, 81, 82). O tema influencia a ESTRUTURA, não
+#: só emoji — que é o que a spec 34 diz explicitamente ("não limitar tema a
+#: emojis").
+#:
+#: POR QUE ISTO NÃO É O "TEMPLATE FORTNITE FIXO" QUE A SPEC 78 PROÍBE
+#: ------------------------------------------------------------------
+#: O template proibido é: tema → servidor inteiro pronto. Aqui o tema acrescenta
+#: no máximo _MAX_CANAIS_DE_TEMA canais, e só quando o porte comporta. A
+#: estrutura continua vindo de domínio × porte × público × estilo. "Fortnite
+#: competitivo" e "Fortnite casual" seguem diferentes; o tema só ajusta o
+#: vocabulário de dentro.
+#:
+#: E spec 80 manda "não criar tudo obrigatoriamente" — por isso o teto.
+_TEMA_CANAIS: dict[str, list[tuple[str, str, str]]] = {
+    "fortnite": [
+        ("zero build", "text", "partida sem construção"),
+        ("creative", "text", "mapa e ilha criada pela comunidade"),
+        ("torneios", "text", "campeonato e inscrição"),
+    ],
+    "minecraft": [
+        ("survival", "text", "mundo e progresso do survival"),
+        ("construções", "text", "o que o pessoal construiu"),
+        ("mods", "text", "modpack e configuração"),
+    ],
+    "gta rp": [
+        ("facções", "text", "organização e território"),
+        ("economia", "text", "trabalho e dinheiro da cidade"),
+        ("eventos", "text", "cena e acontecimento do RP"),
+    ],
+    "valorant": [
+        ("agentes", "text", "composição e estratégia"),
+        ("torneios", "text", "campeonato e inscrição"),
+    ],
+    "anime": [
+        ("recomendações", "text", "o que assistir"),
+        ("fanart", "text", "arte da comunidade"),
+    ],
+}
+
+#: Teto de canais acrescentados por tema. Spec 80: "não criar tudo
+#: obrigatoriamente". Três já é o máximo que não vira enchimento.
+_MAX_CANAIS_DE_TEMA = 2
+
+
+def canais_do_tema(tema: str, porte: "Porte") -> list[tuple[str, str, str]]:
+    """Canais que o tema acrescenta, ou lista vazia.
+
+    Porte pequeno não recebe: comunidade de 20 pessoas com canal de torneio é
+    canal morto, que é o defeito que a spec 44 manda evitar.
+    """
+    if porte == Porte.PEQUENO:
+        return []
+    baixo = (tema or "").lower()
+    for chave, canais in _TEMA_CANAIS.items():
+        if chave in baixo:
+            return canais[:_MAX_CANAIS_DE_TEMA]
+    return []
+
+
+def _norm_nome(nome: str) -> str:
+    """Normaliza para comparar. Igual ao de design_check, mas local: importar de
+    lá criaria dependência circular (design_check importa daqui)."""
+    s = (nome or "").strip().lower()
+    for sep in ("・", "「", "」", "·", "•", "|", "-", "—", "_"):
+        s = s.replace(sep, " ")
+    s = "".join(ch for ch in s if ch.isalnum() or ch == " ").strip()
+    return " ".join(s.split())
+
+
 def projetar(briefing: Briefing) -> Arquitetura:
     """Compõe a arquitetura. Determinístico: mesmo briefing, mesmo resultado."""
     base = _BASE[briefing.dominio]
@@ -562,6 +631,26 @@ def projetar(briefing: Briefing) -> Arquitetura:
                 for nome, tipo, prop in canais_extra
             ],
         ))
+
+    # Tema influencia a estrutura (spec 34). Entra na última categoria de
+    # conteúdo — não cria categoria nova, senão o tema viraria área própria e o
+    # servidor pequeno ganharia categoria quase vazia.
+    extras = canais_do_tema(briefing.tema, briefing.porte)
+    if extras and categorias:
+        alvo = max(
+            (c for c in categorias if not any(x.privado for x in c.canais)),
+            key=lambda c: len(c.canais),
+            default=None,
+        )
+        if alvo is not None:
+            existentes = {_norm_nome(c.nome) for c in alvo.canais}
+            for nome, tipo, proposito in extras:
+                decorado = _n(briefing, nome)
+                if _norm_nome(decorado) in existentes:
+                    continue  # não duplica o que a base já tem
+                alvo.canais.append(
+                    ProjetoCanal(nome=decorado, tipo=tipo, proposito=proposito)
+                )
 
     cargos = _cargos(briefing)
     return Arquitetura(

@@ -42,7 +42,7 @@ Seções na spec: **188**
 | 31 | NÃO COPIAR SERVIDORES | FORA DE ESCOPO | `decisão` | pesquisa na web |
 | 32 | CATÁLOGO DE PADRÕES | PARCIAL | `src/atlas/catalogo.py` | estrutura existe; a FONTE da spec é 'referências pesquisadas' e não houve pesquisa - padrões estão NÃO VERIFICADO |
 | 33 | EVOLUÇÃO DO CATÁLOGO | PRONTA | `tests/test_catalogo.py` | armazena princípios, não templates; cresce por feedback |
-| 34 | IDENTIDADE TEMÁTICA | PARCIAL | `src/atlas/design.py` | tema influencia vocabulário via proposta no prompt, mas não muda estrutura em código - a spec pede mais que isso |
+| 34 | IDENTIDADE TEMÁTICA | PRONTA | `tests/test_design_system.py` | canais_do_tema acrescenta canal em código (zero build, survival, facções), com teto de 2 e sem entrar em porte pequeno |
 | 35 | DIREÇÃO VISUAL | PRONTA | `tests/test_design_system.py` | 13 estilos visuais |
 | 36 | NOMENCLATURA | PRONTA | `tests/test_design_system.py` | nomenclatura uniforme, sem misturar |
 | 37 | CATEGORIAS | PRONTA | `tests/test_design_system.py` | áreas conceituais com propósito |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **137**
-- PARCIAL: **6**
+- PRONTA: **138**
+- PARCIAL: **5**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**
