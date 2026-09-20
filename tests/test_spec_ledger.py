@@ -134,3 +134,28 @@ def test_spec_real_tem_188_secoes():
     assert not faltando, f"seções ausentes: {faltando}"
     assert secoes[0].startswith("MISSÃO")
     assert secoes[187].startswith("PRIMEIRA AÇÃO")
+
+
+def test_mapa_de_evidencias_nao_tem_chave_duplicada():
+    """Chave repetida em literal de dict: a ultima vence EM SILENCIO. Aconteceu
+    de verdade com a secao 156 - duas entradas, uma apontando para commit e outra
+    para teste, e o ruff foi o unico que avisou. Teste para nao depender do ruff."""
+    fonte = (_RAIZ / "scripts" / "spec_ledger.py").read_text(encoding="utf-8")
+    import re
+    chaves = re.findall(r"^\s+(\d{1,3}): \(", fonte, re.MULTILINE)
+    repetidas = {c for c in chaves if chaves.count(c) > 1}
+    assert not repetidas, f"seções com entrada duplicada: {sorted(repetidas)}"
+
+
+def test_evidencia_de_pronta_e_teste_ou_commit():
+    """Regra 5 (spec 160) conferida de novo por dentro: se alguem marcar PRONTA
+    apontando para src/, este teste falha junto com o script."""
+    import re
+    for n, (status, evid, _obs) in mod._EVIDENCIAS.items():
+        if status != mod.PRONTA:
+            continue
+        if re.fullmatch(r"[0-9a-f]{7,40}", evid):
+            continue
+        assert evid.startswith("tests/"), (
+            f"seção {n}: PRONTA aponta para {evid}, não para um teste (spec 160)"
+        )

@@ -164,7 +164,7 @@ Seções na spec: **188**
 | 153 | OBSERVAÇÃO DO DISCORD | ABERTA | `—` |  |
 | 154 | EVENTUAL CONSISTENCY | ABERTA | `—` |  |
 | 155 | OPERAÇÕES EM LOTE | PRONTA | `tests/test_batch.py` | lote respeita a cota e reporta falhas |
-| 156 | PROGRESSO | PRONTA | `76ae5c1` | progresso parcial |
+| 156 | PROGRESSO | PRONTA | `tests/test_progresso.py` | progresso informado |
 | 157 | CONCLUSÃO | ABERTA | `—` |  |
 | 158 | CANCELAMENTO SEGURO | PRONTA | `76ae5c1` | cancelamento cooperativo |
 | 159 | AUDITORIA FINAL DO SISTEMA | ABERTA | `—` |  |

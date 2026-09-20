@@ -122,7 +122,6 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     140: (PRONTA, "tests/test_catalogo.py", "feedback por guild, promover exige fonte"),
     149: (PRONTA, "tests/test_flow_control.py", "backpressure"),
     150: (PRONTA, "tests/test_flow_control.py", "cota por guild em janela"),
-    156: (PRONTA, "76ae5c1", "progresso parcial"),
     158: (PRONTA, "76ae5c1", "cancelamento cooperativo"),
     169: (PRONTA, "tests/test_design_system.py", "compara forma pelo propósito, nunca pelo nome"),
 }
