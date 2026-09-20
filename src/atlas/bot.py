@@ -18,7 +18,7 @@ from .ai import build_ai_client
 from .audit import AuditLog
 from .config import Settings
 from .discord_gateway import DiscordGateway
-from .embeds import EmbedBuilder, EmbedOnlySender, EmbedSpec
+from .embeds import EmbedBuilder, EmbedOnlySender, EmbedSpec, merge_embeds
 from .policy import ActionBudget, Policy
 from .prompts import HELP_TEXT
 from .queue import ActionQueue
@@ -222,9 +222,17 @@ class AtlasBot(discord.Client):
             )
             return
 
-        log.info("respondendo com %d embed(s)", len(outcome.embeds))
-        for embed in outcome.embeds[:3]:
-            await sender.send(embed)
+        # Sempre UMA mensagem. Se o agente produziu varios embeds (lista de
+        # acoes + explicacao), eles sao juntados aqui em vez de virarem duas ou
+        # tres mensagens separadas no meio da conversa.
+        unico = merge_embeds(outcome.embeds)
+        if unico is None:
+            log.warning("agente nao produziu embed; respondendo com aviso")
+            unico = self.builder.error(
+                "Sem resposta", "Fiz o pedido, mas nao tenho o que mostrar. Tenta de novo?"
+            )
+        log.info("respondendo com 1 embed (juntou %d)", len(outcome.embeds))
+        await sender.send(unico)
 
     # ------------------------------------------------------------- processamento
     async def _process(self, guild: discord.Guild, message: discord.Message, text: str, session: Any) -> Any:

@@ -71,14 +71,16 @@ class EmbedSpec:
     def to_discord_embed(self) -> Any:
         import discord  # import tardio: nao obriga Discord em testes
 
+        # Sem titulo e sem rodape, de proposito: o usuario le o texto, e so.
+        # Titulos como "ℹ️ Atlas" e rodapes como "informacao" eram ruido - nao
+        # acrescentavam nada que a propria mensagem ja nao dissesse. A cor na
+        # lateral continua diferenciando sucesso de erro, sem gastar texto.
         embed = discord.Embed(
-            title=self.styled_title[:256],
             description=self.description[:4096] or None,
             color=self.color,
         )
         for f in self.fields[:25]:
             embed.add_field(name=f.name[:256], value=f.value[:1024], inline=f.inline)
-        embed.set_footer(text=(self.footer or _STYLE[self.kind][2])[:2048])
         return embed
 
     def to_plain(self) -> str:
@@ -97,6 +99,51 @@ def _clip(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return text[: max(0, limit - 1)].rstrip() + "…"
+
+
+#: Ordem de gravidade para decidir a cor quando varios embeds viram um so.
+#: Se qualquer coisa falhou, a mensagem tem que parecer com isso.
+_SEVERIDADE: list[EmbedKind] = [
+    EmbedKind.ERROR,
+    EmbedKind.WARNING,
+    EmbedKind.CONFIRM,
+    EmbedKind.SUCCESS,
+    EmbedKind.RESULT,
+    EmbedKind.PLAN,
+    EmbedKind.HELP,
+    EmbedKind.INFO,
+]
+
+
+def merge_embeds(specs: list[EmbedSpec]) -> EmbedSpec | None:
+    """Junta varios embeds em UM so.
+
+    O bot sempre responde com uma unica mensagem. Antes ele mandava ate tres
+    (lista de acoes + explicacao + resumo), o que fazia a resposta parecer
+    picotada no meio da conversa.
+    """
+    uteis = [s for s in specs if (s.description or "").strip() or s.fields]
+    if not uteis:
+        return None
+    if len(uteis) == 1:
+        return uteis[0]
+
+    kind = next(
+        (k for k in _SEVERIDADE if any(s.kind is k for s in uteis)),
+        uteis[0].kind,
+    )
+    partes: list[str] = []
+    campos: list[EmbedField] = []
+    for s in uteis:
+        if (s.description or "").strip():
+            partes.append(s.description.strip())
+        campos.extend(s.fields)
+    return EmbedSpec(
+        kind=kind,
+        title="",
+        description="\n\n".join(partes),
+        fields=campos,
+    )
 
 
 class EmbedBuilder:

@@ -110,8 +110,49 @@ def test_embed_converte_para_discord():
     import discord
 
     assert isinstance(discord_embed, discord.Embed)
-    assert discord_embed.title.startswith("❌")
+    # Sem titulo e sem rodape: o usuario pediu para responder so com o texto.
+    # A cor continua marcando que foi erro.
+    assert discord_embed.title is None
+    assert discord_embed.footer.text is None
+    assert discord_embed.description == "motivo"
+    assert discord_embed.colour.value == 0xE74C3C
     assert len(discord_embed.fields) == 1
+
+
+def test_merge_junta_varios_embeds_em_um_so():
+    """O bot responde com UMA mensagem, sempre."""
+    from atlas.embeds import merge_embeds
+
+    b = EmbedBuilder()
+    junto = merge_embeds([
+        b.success("Feito", "criei o cargo"),
+        b.info("Atlas", "Se quiser ajustar, e so dizer."),
+    ])
+
+    assert junto is not None
+    assert "criei o cargo" in junto.description
+    assert "Se quiser ajustar" in junto.description
+    assert junto.description.count("\n\n") == 1, "os dois textos tem que estar no mesmo embed"
+
+
+def test_merge_usa_a_cor_mais_grave_quando_ha_erro():
+    from atlas.embeds import merge_embeds
+
+    b = EmbedBuilder()
+    junto = merge_embeds([
+        b.success("Feito", "parte deu certo"),
+        b.error("Falhou", "parte deu errado"),
+    ])
+
+    assert junto is not None
+    assert junto.kind == EmbedKind.ERROR, "se algo falhou, a mensagem tem que parecer com isso"
+
+
+def test_merge_de_lista_vazia_devolve_none():
+    from atlas.embeds import merge_embeds
+
+    assert merge_embeds([]) is None
+    assert merge_embeds([EmbedBuilder().info("x", "")]) is None
 
 
 def test_erro_de_permissao_vira_embed_legivel(harness):
