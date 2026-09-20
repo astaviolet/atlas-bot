@@ -15,6 +15,7 @@ import discord
 
 from .agent import Agent, AgentOutcome, build_agent
 from .concurrency import GuildLocks
+from .botoes_ui import BotoesConfirmacao
 from .progresso import Cancelador
 from .ai import build_ai_client
 from .audit import AuditLog
@@ -278,7 +279,9 @@ class AtlasBot(discord.Client):
             # Passa pelo EmbedOnlySender igual ao caminho classico: a garantia
             # de que so sai EmbedSpec (nunca texto puro) nao pode depender de
             # qual formato de mensagem esta em uso.
-            await EmbedOnlySender(self._make_sender_v2(message.channel)).send(unico)
+            await EmbedOnlySender(
+                self._make_sender_v2(message.channel, self._botoes_de_confirmacao(session))
+            ).send(unico)
         except discord.HTTPException:
             # Components V2 pode nao estar liberado para este bot ainda. Cai no
             # embed classico em vez de deixar o usuario sem resposta.
@@ -394,13 +397,39 @@ class AtlasBot(discord.Client):
 
         return send
 
-    def _make_sender_v2(self, channel: discord.abc.Messageable) -> Any:
+    def _make_sender_v2(self, channel: discord.abc.Messageable, botoes: Any = None) -> Any:
         """Envia em Components V2. Continua sendo UMA mensagem por resposta."""
 
         async def send(spec: EmbedSpec) -> None:
-            await channel.send(view=spec.to_layout_view())
+            view = spec.to_layout_view()
+            if botoes is not None:
+                botoes.anexar_em(view)
+            await channel.send(view=view)
 
         return send
+
+    def _botoes_de_confirmacao(self, session: Any) -> Any:
+        """So quando ha plano pendente de verdade. Botao sem plano e botao que
+        nao faz nada - pior que nao ter botao."""
+        pendente = getattr(session, "pending", None)
+        if pendente is None:
+            return None
+        return BotoesConfirmacao(
+            token=str(pendente.token),
+            guild_id=session.guild_id,
+            ao_decidir=self._decidir_por_botao,
+            sessions=self.sessions,
+        )
+
+    async def _decidir_por_botao(self, interacao: Any, decidir: str, session: Any) -> None:
+        """Executa o que o clique validou. Nunca valida de novo por conta propria:
+        a validacao ja passou por validar_clique (spec 73)."""
+        texto = "sim" if decidir == "confirmar" else "nao"
+        resposta = await self._process(interacao.guild, interacao.message, texto, session)
+        unico = merge_embeds(resposta.embeds)
+        if unico is None:
+            return
+        await interacao.response.send_message(view=unico.to_layout_view(), ephemeral=False)
 
 
 def run(settings: Settings, audit: AuditLog) -> None:

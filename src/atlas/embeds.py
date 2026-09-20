@@ -94,7 +94,7 @@ class EmbedSpec:
             embed.add_field(name=limpar(f.name)[:256], value=limpar(f.value)[:1024], inline=f.inline)
         return embed
 
-    def to_layout_view(self) -> Any:
+    def to_layout_view(self, botoes: Any = None) -> Any:
         """Components V2: um cartao com barra de cor, em vez de embed.
 
         Mais legivel que embed no celular e nao tem titulo nem rodape para
