@@ -20,7 +20,17 @@ PYTHON="${PYTHON:-.venv/bin/python}"
 LOG_DIR="${LOG_DIR:-logs}"
 LOG_FILE="${LOG_DIR}/bot.log"
 
-[ -x "$PYTHON" ] || PYTHON="python3"
+if [ ! -x "$PYTHON" ]; then
+  # Cair em python3 sem avisar e pior que falhar: o bot entra em loop de
+  # ModuleNotFoundError e o log nao diz o motivo real. Aconteceu quando o
+  # .venv sumiu do sandbox.
+  if ! python3 -c "import atlas" 2>/dev/null; then
+    echo "[supervisor] ERRO: $PYTHON nao existe e o python3 do sistema nao tem o pacote atlas."
+    echo "[supervisor] Recrie o ambiente: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt && .venv/bin/pip install -e ."
+    exit 1
+  fi
+  PYTHON="python3"
+fi
 mkdir -p "$LOG_DIR"
 
 # ---------------------------------------------------------------------------
