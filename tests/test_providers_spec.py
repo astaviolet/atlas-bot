@@ -125,3 +125,27 @@ def test_nenhuma_rota_do_pool_default_declara_structured_output():
 
     com_saida = [r for r in all_routes() if r.caps.structured_output]
     assert com_saida == [], f"pool mudou, ligar o caminho JSON: {com_saida}"
+
+
+# ------------------------------------------------- spec 53: descoberta de provedor
+def test_ovh_nao_afirma_tool_calling_sem_ter_confirmado():
+    """O tier anonimo da OVH esta vivo (200 em /v1/models, 24 modelos), mas o
+    limite de 2 req/min por modelo estourou em 3 tentativas antes de dar para
+    confirmar tool calling. Entrar no pool anonimo afirmando a capacidade seria
+    inventar - por isso segue MANUAL_REQUIRED. Se um dia confirmar, este teste
+    avisa para ligar.
+    """
+    from atlas.ai.providers import CATALOG, Access
+
+    ovh = next(g for g in CATALOG if g.id == "ovh")
+    assert ovh.access == Access.MANUAL_REQUIRED
+    assert ovh.rpm == 2, "o limite medido e 2 req/min por IP por modelo"
+    assert "2 req/min" in ovh.notes
+
+
+def test_pool_anonimo_tem_pelo_menos_dois_gateways_sem_chave():
+    """Regra da missao de 21 itens: o pool default precisa de redundancy sem configuracao manual. OVH nao conta aqui porque e MANUAL_REQUIRED."""
+    from atlas.ai.providers import CATALOG, Access
+
+    anonimos = [g.id for g in CATALOG if g.access == Access.NO_AUTH]
+    assert len(anonimos) >= 2, f"pool anonimo fraco: {anonimos}"

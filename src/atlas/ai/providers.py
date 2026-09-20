@@ -117,14 +117,26 @@ CATALOG: list[Gateway] = [
     Gateway(
         id=OVH,
         base_url="https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
-        # Era anonimo; a sondagem de hoje devolveu 403 em todas as rotas. Passa a
-        # MANUAL_REQUIRED: fica catalogado para quem tiver a chave, mas nao entra
-        # no pool anonimo. Nao foi removido do codigo porque a integracao funciona
-        # - o que mudou foi a politica de acesso do provedor.
+        # CORRIGIDO: a nota anterior dizia "403 em todas as rotas", e isso estava
+        # ERRADO. Sondagem de hoje, sem chave:
+        #   GET /v1/models  -> HTTP 200, 24 modelos listados
+        #   POST /v1/chat/completions com modelo inexistente -> HTTP 404
+        #     model_not_found (ou seja: autenticacao passou, o modelo e que nao
+        #     existe - nunca foi bloqueio de credencial)
+        #   POST com modelo valido -> {"message": "API rate limit exceeded"}
+        # O tier anonimo EXISTE e esta vivo. O que impede de usar e o limite de
+        # 2 req/min por IP por modelo, que num IP compartilhado estoura antes de
+        # dar para confirmar tool calling - tentei 3 vezes, inclusive esperando
+        # 70s, e todas cairam no limite.
+        #
+        # Segue MANUAL_REQUIRED de proposito, e nao por falta de verificacao
+        # preguicosa: entrar no pool anonimo com tool_calling=True sem ter
+        # confirmado seria inventar capacidade, que e o que a spec 185 proibe.
         access=Access.MANUAL_REQUIRED,
-        rpm=2,  # documentado para tier anonimo (quando existia)
+        rpm=2,  # medido: 2 req/min por IP por modelo no tier anonimo
         concurrency=1,
-        notes="Passou a exigir credencial (403 em sondagem). So entra se AI_API_KEY vier preenchida.",
+        notes=("Tier anonimo vivo (200 em /v1/models), mas 2 req/min por modelo "
+               "estoura antes de confirmar tool calling. Entra so com chave."),
         models=[
             _r(OVH, "Qwen3-Coder-30B-A3B-Instruct", weight=100),
         ],
