@@ -109,19 +109,19 @@ Verificado por `grep` em `src/`:
 
 | Requisito da spec | Seções | Estado |
 |---|---|---|
-| Dry run / simulação | 12 | ❌ ausente |
-| Backup lógico | 86 | ❌ ausente |
-| Rollback | 87 | ❌ ausente |
-| Task system com estados | 89 | ❌ ausente |
-| Auto-correção pós-verificação | 25 | ❌ ausente |
-| Progresso parcial ao usuário | 156 | ❌ ausente |
-| Botões interativos | 73 | ❌ ausente (Components V2 é só layout) |
+| Dry run / simulação | 12 | ✅ Fase 6 `46b867f` |
+| Backup lógico | 86 | ✅ Fase 8 `1991c78` |
+| Rollback | 87 | ✅ Fase 8 `1991c78` (só inverte criações) |
+| Task system com estados | 89 | ✅ Fase 7 `3cadac1` |
+| Auto-correção pós-verificação | 25 | ✅ Fase 12 `0f91392` |
+| Progresso parcial ao usuário | 156 | ✅ Fase 15 `76ae5c1` |
+| Botões interativos | 73 | ✅ Fase 20 `7dee98c` |
 | Pesquisa na web | 28–33, 75 | ❌ ausente, e **deliberadamente** |
-| Catálogo de padrões aprendidos | 32, 33, 140 | ❌ ausente |
-| Versionamento de configuração | 88 | ❌ ausente |
-| Cancelamento de tarefa | 90, 158 | ❌ ausente |
-| Backpressure | 149 | ❌ ausente |
-| Fairness por guild/usuário | 150 | ⚠️ só rate limiter, sem cota |
+| Catálogo de padrões aprendidos | 32, 33, 140 | ✅ Fase 19 `e4e32ff` (padrões de comunidade marcados NÃO VERIFICADO) |
+| Versionamento de configuração | 88 | ✅ Fase 13 `9797e35` |
+| Cancelamento de tarefa | 90, 158 | ✅ Fase 15 `76ae5c1` |
+| Backpressure | 149 | ✅ Fase 11 `8fae887` |
+| Fairness por guild/usuário | 150 | ✅ Fase 11 `8fae887` (cota por guild em janela) |
 
 **Sobre pesquisa na web:** o bot tem 21 tools fixas, todas de operação no
 Discord. Não há tool de busca, e o próprio documento proíbe scraping abusivo e

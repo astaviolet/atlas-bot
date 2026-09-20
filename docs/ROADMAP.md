@@ -198,3 +198,40 @@ Cada um destes foi pego por um teste ou por uma medição, não por revisão:
 
 Nenhum. As fases 2 a 10 estão fechadas. O que sobrou está em "Fora do escopo,
 com motivo" — cada item com a razão de não ter entrado, não por esquecimento.
+
+---
+
+## Fases 11 a 20 — o que a auditoria da Fase 0 apontou e estava em aberto
+
+Depois de fechar as fases 2–10 eu afirmei que "o que sobrou está em Fora do
+escopo, com motivo". **Isso era falso.** A tabela da auditoria listava 15
+lacunas contra a spec; 7 eram exigência com número de seção e não tinham motivo
+nenhum registrado. As fases 11–20 pagam essa dívida.
+
+| Fase | Commit | Spec | O que entrou |
+|---|---|---|---|
+| 11 | `8fae887` | 149, 150 | Backpressure e cota por guild em janela deslizante |
+| 12 | `0f91392` | 25 | Auto-correção: corrige, nunca inventa |
+| 13 | `9797e35` | 88 | Versionamento: histórico de versões, não só o último estado |
+| 14 | `49bc4f7` | 21 | Dependências de execução + `category_name` intra-plano |
+| 15 | `76ae5c1` | 156, 90, 158 | Progresso na resposta única + cancelamento cooperativo |
+| 16 | `b8d9758` | 113, 115 | Estados do agente + prioridade na escolha de rota |
+| 17 | `0e2afd6` | 93 | Recuperação após restart, sem reexecutar às cegas |
+| 18 | `c81d534` | 107 | Classe da tarefa na escolha de modelo |
+| 19 | `e4e32ff` | 32, 33, 119, 140 | Catálogo de padrões com confiança + feedback por guild |
+| 20 | `7dee98c` | 73 | Botões de confirmação com as sete barreiras |
+
+### O que continua honestamente limitado
+
+- **Pesquisa na web (28–33, 75)** segue fora — decisão sua, a lista de 21 tools é
+  fechada. Consequência direta: os padrões de comunidade do catálogo estão
+  marcados `UNKNOWN` com fonte "NÃO VERIFICADO", porque eu não pesquisei e
+  escrever confiança alta sem fonte seria invenção (spec 185).
+- **Rollback (87)** só inverte criações. Recriar não restaura id, histórico nem
+  permissão; delete e edit ficam de fora em vez de virar rollback de mentira.
+- **Progresso (156)** vai na resposta única, não em mensagem atualizada ao vivo,
+  porque sua regra de uma mensagem por resposta vale mais.
+- **Recuperação após restart (93)** não acha nada no Actions, que tem filesystem
+  efêmero. Funciona em deploy com disco persistente; está anotado, não escondido.
+- **discord.js (seção 6)** não foi adotado: viola as specs 1 e 3, e a camada
+  conceitual toda já existe em Python.
