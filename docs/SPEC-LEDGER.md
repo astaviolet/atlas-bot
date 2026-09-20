@@ -71,7 +71,7 @@ Seções na spec: **188**
 | 60 | LOAD BALANCING | PRONTA | `tests/test_router.py` | carga se distribui em vez de empilhar na primeira rota |
 | 61 | CIRCUIT BREAKER | PRONTA | `tests/test_router.py` | cooldown acaba e a rota volta em half-open |
 | 62 | RETRIES | PRONTA | `tests/test_router.py` | cooldown cresce a cada queda seguida |
-| 63 | FILAS | ABERTA | `—` |  |
+| 63 | FILAS | PRONTA | `tests/test_wiring.py` | fila em série com rate limit, auditoria e isolamento por guild; 429 não insiste na mesma rota |
 | 64 | CONCORRÊNCIA | PRONTA | `tests/test_flow_control.py` | concorrência controlada |
 | 65 | LOCK POR GUILD | PRONTA | `tests/test_flow_control.py` | trava por guild |
 | 66 | RATE LIMIT DISCORD | PRONTA | `tests/test_security.py` | rate limit por servidor |
@@ -122,7 +122,7 @@ Seções na spec: **188**
 | 111 | CONVERSAÇÃO NATURAL | ABERTA | `—` |  |
 | 112 | NÃO EXPOR RACIOCÍNIO INTERNO | PRONTA | `tests/test_antivazamento.py` | filtro na saída derivado do prompt real; pega caixa/quebra diferente e não censura resposta legítima |
 | 113 | ESTADO DO AGENTE | PRONTA | `tests/test_estados.py` | estados do agente |
-| 114 | CANCELAMENTO E CONFLITOS | ABERTA | `—` |  |
+| 114 | CANCELAMENTO E CONFLITOS | PRONTA | `tests/test_wiring.py` | guild travado devolve guild_busy em vez de misturar planos; trava liberada mesmo com exceção |
 | 115 | PRIORIDADE | PRONTA | `tests/test_classificacao.py` | prioridade de rota |
 | 116 | BACKGROUND DISCOVERY | FORA DE ESCOPO | `decisão` | verificada como satisfeita por ausência: nada atrasa pedido simples |
 | 117 | CACHE DE PESQUISA | ABERTA | `—` |  |
@@ -135,7 +135,7 @@ Seções na spec: **188**
 | 124 | COMPATIBILIDADE | ABERTA | `—` |  |
 | 125 | DISCORD API CHANGES | ABERTA | `—` |  |
 | 126 | EXTENSIBILIDADE | ABERTA | `—` |  |
-| 127 | PLUGIN-STYLE TOOLS | ABERTA | `—` |  |
+| 127 | PLUGIN-STYLE TOOLS | PRONTA | `tests/test_policy.py` | tools modulares: channels.py, roles.py, server.py, read.py — registry recusa ferramenta proibida |
 | 128 | NÃO CRIAR COMPLEXIDADE SEM NECESSIDADE | ABERTA | `—` |  |
 | 129 | PRINCÍPIO DE SIMPLICIDADE | ABERTA | `—` |  |
 | 130 | EXPERIÊNCIA DO USUÁRIO | PARCIAL | `src/atlas/design.py` | proposta concreta entra no prompt |
@@ -161,8 +161,8 @@ Seções na spec: **188**
 | 150 | FAIRNESS | PRONTA | `tests/test_flow_control.py` | cota por guild em janela |
 | 151 | SEGURANÇA DE TOOLS | PRONTA | `tests/test_security.py` | barreiras de schema, auth, policy e contexto |
 | 152 | TOOL RESULT | PRONTA | `tests/test_batch.py` | ActionResult: ok=success, status derivado, data, error, metadata real (tool, duração, guild, corrigiu) |
-| 153 | OBSERVAÇÃO DO DISCORD | ABERTA | `—` |  |
-| 154 | EVENTUAL CONSISTENCY | ABERTA | `—` |  |
+| 153 | OBSERVAÇÃO DO DISCORD | PRONTA | `tests/test_errors.py` | verificação pós-ação compara com o Discord e detecta mudança que não aconteceu |
+| 154 | EVENTUAL CONSISTENCY | PRONTA | `tests/test_wiring.py` | verificar exclusão usa retry — o Discord pode não refletir na hora |
 | 155 | OPERAÇÕES EM LOTE | PRONTA | `tests/test_batch.py` | lote respeita a cota e reporta falhas |
 | 156 | PROGRESSO | PRONTA | `tests/test_progresso.py` | progresso informado |
 | 157 | CONCLUSÃO | ABERTA | `—` |  |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **112**
+- PRONTA: **117**
 - PARCIAL: **7**
-- ABERTA: **63**
+- ABERTA: **58**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 
