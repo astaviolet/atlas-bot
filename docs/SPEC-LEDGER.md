@@ -53,8 +53,8 @@ Seções na spec: **188**
 | 42 | PERMISSÕES | PRONTA | `tests/test_design_system.py` | nenhum funcional nasce com administrator |
 | 43 | ONBOARDING | PRONTA | `tests/test_design_system.py` | jornada de onboarding por domínio |
 | 44 | ESCALA | PRONTA | `tests/test_design_system.py` | porte corta a arquitetura |
-| 45 | RECONSTRUÇÃO DE SERVIDORES | ABERTA | `—` |  |
-| 46 | PRESERVAÇÃO | ABERTA | `—` |  |
+| 45 | RECONSTRUÇÃO DE SERVIDORES | PRONTA | `tests/test_reforma.py` | audita nomenclatura mista, categoria demais, admin demais + os defeitos que design_check já achava |
+| 46 | PRESERVAÇÃO | PRONTA | `tests/test_reforma.py` | nada é excluído: sobra vira suspeita para decisão humana; canal padrão é preservado |
 | 47 | SERVER DESIGN QA | PRONTA | `tests/test_design_check.py` | QA interno: categoria vazia, canal duplicado, cargo com admin, canal órfão |
 | 48 | MEMÓRIA | ABERTA | `—` |  |
 | 49 | CONTEXTO | ABERTA | `—` |  |
@@ -92,8 +92,8 @@ Seções na spec: **188**
 | 81 | MINECRAFT | ABERTA | `—` |  |
 | 82 | GTA RP | ABERTA | `—` |  |
 | 83 | OUTROS TEMAS | ABERTA | `—` |  |
-| 84 | SERVER REBUILD | ABERTA | `—` |  |
-| 85 | MIGRAÇÃO | ABERTA | `—` |  |
+| 84 | SERVER REBUILD | PRONTA | `tests/test_reforma.py` | AUDITAR → MAPEAR → PLANEJAR → MOSTRAR IMPACTO; não executa |
+| 85 | MIGRAÇÃO | PRONTA | `tests/test_reforma.py` | mapeia old→new e preserva id: renomeia e move em vez de excluir e recriar |
 | 86 | BACKUP LÓGICO | PRONTA | `1991c78` | backup lógico |
 | 87 | ROLLBACK | PARCIAL | `1991c78` | rollback só inverte criações |
 | 88 | CONFIGURATION VERSIONING | PRONTA | `tests/test_snapshot.py` | versionamento JSONL por guild (Fase 13 `9797e35`) |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **80**
+- PRONTA: **84**
 - PARCIAL: **6**
-- ABERTA: **96**
+- ABERTA: **92**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 
