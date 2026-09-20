@@ -3,9 +3,9 @@
 Bot que configura a **estrutura** de um servidor por linguagem natural. O modelo
 planeja; o backend valida e executa. Nenhuma decisão de segurança vive no prompt.
 
-A camada de IA é um gateway **compatível com a API OpenAI**. O bot não conhece
-provedor nenhum: trocar de modelo ou de gateway é trocar três variáveis de
-ambiente.
+A camada de IA fala com um endpoint **compatível com a API OpenAI**. O padrão é
+público e **anônimo — não pede conta, cartão nem chave**. O bot não conhece
+provedor nenhum: trocar de gateway é trocar três variáveis de ambiente.
 
 ```
 Discord
@@ -16,7 +16,7 @@ Agent                      laco de raciocinio
   ↓
 AI Service                 atlas.ai — unica saida para modelo
   ↓
-Gateway OpenAI-compativel  (OmniRoute ou equivalente)
+Endpoint OpenAI-compativel  publico e anonimo, com failover entre modelos
   ↓
 LLM
 
@@ -47,7 +47,7 @@ cp .env.example .env      # preencha
 Outros modos:
 
 ```bash
-.venv/bin/python -m pytest -q                   # 286 testes
+.venv/bin/python -m pytest -q                   # 295 testes
 .venv/bin/python main.py --demo                 # agente contra servidor simulado
 ```
 
@@ -73,17 +73,37 @@ AI_MODEL=
 ATLAS_AUDIT_PATH=logs/audit.jsonl
 ```
 
-| Variável | Função |
-|---|---|
-| `AI_API_KEY` | credencial do gateway |
-| `AI_BASE_URL` | endereço do gateway, sem barra no final |
-| `AI_MODEL` | nome do modelo exatamente como o gateway espera |
+**Só `DISCORD_TOKEN` é obrigatório.** As três `AI_*` podem ficar vazias: o bot
+cai no padrão anônimo embutido em `config.py`.
 
-`--check` lista o estado de cada uma e sai com código 2 dizendo o que falta,
-sem inventar nada.
+| Variável | Obrigatória | Padrão quando vazia |
+|---|---|---|
+| `DISCORD_TOKEN` | sim | — (exigência do Discord) |
+| `AI_API_KEY` | não | nenhuma; o endpoint ignora o header de auth |
+| `AI_BASE_URL` | não | `https://api.llm7.io/v1` |
+| `AI_MODEL` | não | `codestral-latest,GLM-5.3-Flash,minimax-m2.7` |
 
-Trocar de provedor **não exige mudança de código**: basta apontar `AI_BASE_URL`
-para outro endpoint compatível e ajustar `AI_MODEL`.
+`AI_MODEL` é uma **lista em ordem de preferência**. Endpoint gratuito devolve
+429/503 com frequência, então o cliente tenta o próximo da lista antes de
+desistir. Erros permanentes (401) não fazem failover — falham na hora.
+
+Trocar de provedor **não exige mudança de código**: aponte `AI_BASE_URL` para
+outro endpoint compatível, ajuste `AI_MODEL` e, se ele exigir, preencha
+`AI_API_KEY`. As três variáveis vencem o padrão.
+
+### Sobre o endpoint padrão
+
+É público, gratuito e anônimo. Os três modelos da lista foram verificados como
+acessíveis sem chave **e** com suporte a tool calling, que é obrigatório aqui.
+Em contrapartida:
+
+- a disponibilidade oscila — daí o failover e o backoff;
+- não há SLA nem garantia de continuidade;
+- suas mensagens passam por um servidor de terceiros que você não controla.
+  Não mande nada sensível, e o bot já não tem acesso a dados de membros.
+
+Para algo estável, preencha as três variáveis com um gateway pago. O código é o
+mesmo.
 
 ---
 
@@ -121,24 +141,28 @@ Como funciona o contorno:
    git push -u origin main
    ```
 
-2. Em **Settings → Secrets and variables → Actions**, crie os quatro segredos:
+2. Em **Settings → Secrets and variables → Actions**, crie **um** segredo:
 
    | Segredo | Conteúdo |
    |---|---|
    | `DISCORD_TOKEN` | token do bot |
-   | `AI_API_KEY` | chave do gateway |
-   | `AI_BASE_URL` | endpoint do gateway |
-   | `AI_MODEL` | nome do modelo |
 
-   Opcional, em **Variables** (não é segredo): `ATLAS_CONTROL_CHANNEL_ID`.
-   Sem ele o bot detecta o canal pelo nome `atlas-config` ou pelo tópico
-   `[atlas-control]`.
+   É o único. A camada de IA é anônima e não precisa de chave. Se um dia você
+   quiser um gateway pago, aí sim acrescente `AI_API_KEY` (secret) e
+   `AI_BASE_URL` / `AI_MODEL` (variables).
+
+   Opcional, em **Variables**: `ATLAS_CONTROL_CHANNEL_ID`. Sem ele o bot
+   detecta o canal pelo nome `atlas-config` ou pelo tópico `[atlas-control]`.
+
+   **O token não pode ir no repositório.** Ele dá controle total do bot; se for
+   commitado em repo público, qualquer um assume o bot em minutos. Por isso ele
+   é segredo, não arquivo.
 
 3. Aba **Actions** → **Atlas no ar** → **Run workflow**. O `push` no `main`
    também dispara sozinho.
 
-O job roda a suíte de testes antes de subir o bot. Se algum segredo estiver
-faltando, ele falha listando **os nomes** que faltam — nunca o valor.
+O job roda a suíte de testes antes de subir o bot. Se o token estiver faltando,
+ele falha dizendo o nome do segredo — nunca o valor.
 
 ### Limites que você precisa saber
 
@@ -152,9 +176,8 @@ faltando, ele falha listando **os nomes** que faltam — nunca o valor.
   restart automático não acontece.
 - **Repositório parado desliga o agendamento.** Depois de 60 dias sem atividade
   o GitHub desativa workflows agendados; um `push` qualquer religa.
-- **Isto não resolve credencial.** O Actions fornece o lugar para rodar, não a
-  chave. Sem `AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL` o job nem sobe — falha no
-  passo "Conferir segredos".
+- **O token do Discord é inegociável.** Não existe forma de conectar um bot sem
+  ele, e ele não pode ser commitado. É o único segredo que você precisa criar.
 
 Para produção de verdade (sem janela de indisponibilidade), o mesmo código roda
 em Fly.io, Railway ou qualquer VPS: `pip install -r requirements.txt` e
@@ -202,7 +225,7 @@ atlas-bot/
 │   ├── errors.py                 hierarquia de excecoes (AIError, PolicyViolation...)
 │   ├── demo.py                   modo demo sem credencial
 │   └── testing/fake_gateway.py   Discord em memoria com as mesmas restricoes
-└── tests/                        8 arquivos de teste + conftest, 286 testes
+└── tests/                        8 arquivos de teste + conftest, 295 testes
 ```
 
 ---
@@ -294,7 +317,7 @@ aviso, ajuda. Textos são cortados nos limites da API.
 ## Testes
 
 ```
-286 passed
+295 passed
 ```
 
 | Arquivo | Cobre |
@@ -391,22 +414,28 @@ gateway, a ferramenta não expõe) e tudo que envolva membros.
 
 ---
 
-## Pendências
+## Pendências e riscos
 
-**1. Sem credencial de IA.** `AI_API_KEY`, `AI_BASE_URL` e `AI_MODEL` estão
-vazios, e nenhuma credencial foi inventada. O protocolo foi validado contra um
-gateway stub em HTTP local (caminho, header de auth, payload das 21 tools,
-parsing de `tool_calls`, HTTP 401 → `AIError`), mas **nenhuma chamada foi feita
-a um gateway real** — o primeiro teste de ponta a ponta com o OmniRoute precisa
-das três variáveis preenchidas. Com elas vazias o bot conecta e responde um
-embed dizendo quais variáveis faltam.
+**1. O endpoint padrão é gratuito e instável.** Foi testado de ponta a ponta e
+funciona, mas devolve 429/503 com frequência. O failover entre três modelos e o
+backoff cobrem a maior parte disso; ainda assim pode haver pedido que falhe. Se
+isso incomodar, preencha as três variáveis com um gateway pago — o código não
+muda.
 
-**2. Components V2 não está implementado.** O sistema de respostas usa Embeds
-clássicos. O `discord.py 2.7.1` instalado suporta V2 (`MessageFlags.components_v2`,
+**2. O token do Discord precisa ser segredo.** É o único. Não há como rodar o
+bot sem ele e não é seguro commitá-lo.
+
+**3. Components V2 não está implementado.** As respostas usam Embeds clássicos.
+O `discord.py 2.7.1` instalado suporta V2 (`MessageFlags.components_v2`,
 `discord.ui.LayoutView`, `TextDisplay`, `SectionComponent`), então a migração é
-viável, mas é uma mudança separada da camada de IA e afetaria `embeds.py`,
-`bot.py` e os testes de resposta.
+viável, mas é mudança separada e afetaria `embeds.py`, `bot.py` e os testes de
+resposta.
 
-**3. `discord_gateway.py` foi validado contra a API real** em rodada anterior
-(leitura + criação de categoria/canal/cargo com verificação e limpeza). A troca
-da camada de IA não tocou nele.
+**4. Modelo gratuito escreve pior que modelo pago.** O prompt pede para ler o
+estado antes de criar e não duplicar nomes; modelos menores seguem isso de
+forma irregular. A segurança não depende disso — tudo é validado em código —
+mas a qualidade do plano sim.
+
+**5. `discord_gateway.py` foi validado contra a API real** em rodada anterior
+(leitura + criação de categoria/canal/cargo com verificação e limpeza). As
+mudanças na camada de IA não tocaram nele.

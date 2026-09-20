@@ -32,28 +32,12 @@ __all__ = [
 ]
 
 
-def build_ai_client(settings: Settings, *, allow_missing: bool = False) -> ModelClient:
+def build_ai_client(settings: Settings) -> ModelClient:
     """Constroi o cliente de IA a partir da configuracao.
 
-    Com allow_missing=True e sem credencial, devolve um cliente que falha de
-    forma controlada em vez de derrubar a subida do bot. Isso deixa o projeto
-    inicializavel sem nenhuma chave configurada.
+    Nao exige chave: AI_BASE_URL e AI_MODEL tem padrao anonimo em config.py, e
+    AI_API_KEY vazia e aceita porque o endpoint publico ignora o header de auth.
     """
-    missing = [n for n in ("AI_API_KEY", "AI_BASE_URL", "AI_MODEL")
-               if not getattr(settings, {"AI_API_KEY": "ai_api_key",
-                                         "AI_BASE_URL": "ai_base_url",
-                                         "AI_MODEL": "ai_model"}[n])]
-    if missing:
-        if not allow_missing:
-            raise ConfigError("Faltam credenciais da camada de IA: " + ", ".join(missing))
-        return FailingModelClient(
-            "credenciais de IA ausentes: " + ", ".join(missing),
-            user_message=(
-                "A camada de IA ainda nao esta configurada "
-                "(faltam " + ", ".join(missing) + " no .env)."
-            ),
-        )
-
     return OpenAICompatibleClient(
         api_key=settings.ai_api_key,
         base_url=settings.ai_base_url,

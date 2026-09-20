@@ -113,9 +113,9 @@ class AtlasBot(discord.Client):
         self.sessions = SessionStore(settings.limits)
         self.registry = build_registry()
         self.builder = EmbedBuilder(settings.limits)
-        # allow_missing: o bot sobe e responde com embed de erro se a camada de IA
+        # A camada de IA nunca impede a subida: o endpoint padrao e anonimo.
         # ainda nao tiver credencial, em vez de falhar na inicializacao.
-        self.model = build_ai_client(settings, allow_missing=True)
+        self.model = build_ai_client(settings)
         self.limiter = GuildRateLimiter(
             settings.limits.rate_capacity,
             settings.limits.rate_refill_per_sec,

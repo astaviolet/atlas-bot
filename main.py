@@ -52,14 +52,9 @@ def main() -> int:
     if not settings.discord_token:
         raise RuntimeError("Falta DISCORD_TOKEN no .env - sem ele o bot nao conecta.")
 
-    if settings.missing():
-        # Nao e fatal: o bot sobe e responde com um embed explicando que a
-        # camada de IA esta sem credencial. Nenhuma chave e inventada aqui.
-        print(
-            "[config] AVISO: camada de IA sem credencial ("
-            + ", ".join(settings.missing())
-            + "). O bot vai conectar, mas pedidos vao receber um embed de erro."
-        )
+    modelos = [m.strip() for m in settings.ai_model.split(",") if m.strip()]
+    print(f"[config] IA: {settings.ai_base_url}  modelos={modelos}")
+    print("[config] chave: " + ("configurada" if settings.ai_api_key else "nao necessaria (endpoint anonimo)"))
 
     run_bot(settings, audit)
     return 0

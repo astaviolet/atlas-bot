@@ -31,6 +31,24 @@ SECRET_ENV_NAMES: frozenset[str] = frozenset(
 )
 
 
+# ---------------------------------------------------------------- sem chave
+# O provedor padrao e publico e anonimo: nao pede conta, nao pede cartao e nao
+# pede chave. As tres variaveis continuam existindo e continuam vencendo - se
+# um dia voce quiser apontar para outro gateway, e so preencher o .env.
+#
+# AI_MODEL e uma lista em ordem de preferencia. Endpoints gratuitos devolvem
+# 429/503 com frequencia, entao o cliente tenta o proximo da lista. Os tres
+# abaixo foram verificados como anonimos E com suporte a tool calling.
+DEFAULT_AI_BASE_URL = "https://api.llm7.io/v1"
+DEFAULT_AI_MODEL = "codestral-latest,GLM-5.3-Flash,minimax-m2.7"
+
+# O SDK openai se recusa a instanciar com api_key vazia, mas este endpoint
+# ignora o header de autorizacao (verificado: aceita "Bearer nao-tem-chave" e
+# responde normalmente). Entao isto e um marcador de protocolo exigido pelo
+# cliente, NAO uma credencial. Nao da acesso a nada e nao e segredo.
+NO_KEY_PLACEHOLDER = "sem-chave"
+
+
 @dataclass(frozen=True)
 class Limits:
     """Limites centralizados. Sao a unica fonte de verdade para cotas."""
@@ -76,8 +94,8 @@ class Limits:
 class Settings:
     discord_token: str
     ai_api_key: str = ""
-    ai_base_url: str = ""
-    ai_model: str = ""
+    ai_base_url: str = DEFAULT_AI_BASE_URL
+    ai_model: str = DEFAULT_AI_MODEL
     control_channel_id: int | None = None
     audit_path: str = "logs/audit.jsonl"
     limits: Limits = field(default_factory=Limits)
@@ -86,7 +104,7 @@ class Settings:
         """Versao segura para log. Nunca contem segredo."""
         return {
             "discord_token": "***" if self.discord_token else "(vazio)",
-            "ai_api_key": "***" if self.ai_api_key else "(vazio)",
+            "ai_api_key": "***" if self.ai_api_key else "(nao necessaria - endpoint anonimo)",
             "ai_base_url": self.ai_base_url or "(vazio)",
             "ai_model": self.ai_model or "(vazio)",
             "control_channel_id": self.control_channel_id,
@@ -94,16 +112,14 @@ class Settings:
         }
 
     def missing(self) -> list[str]:
-        """O que ainda falta preencher no .env."""
+        """O que ainda falta preencher no .env.
+
+        So o token do Discord e obrigatorio. A camada de IA tem padrao anonimo,
+        entao AI_BASE_URL / AI_MODEL vazios nao sao "faltando": caem no padrao.
+        """
         faltando = []
         if not self.discord_token:
             faltando.append("DISCORD_TOKEN")
-        if not self.ai_api_key:
-            faltando.append("AI_API_KEY")
-        if not self.ai_base_url:
-            faltando.append("AI_BASE_URL")
-        if not self.ai_model:
-            faltando.append("AI_MODEL")
         return faltando
 
     def with_limits(self, **changes: Any) -> "Settings":
@@ -138,8 +154,8 @@ def load_settings(
     settings = Settings(
         discord_token=os.getenv("DISCORD_TOKEN", "").strip(),
         ai_api_key=os.getenv("AI_API_KEY", "").strip(),
-        ai_base_url=_normalize_base_url(os.getenv("AI_BASE_URL", "")),
-        ai_model=os.getenv("AI_MODEL", "").strip(),
+        ai_base_url=_normalize_base_url(os.getenv("AI_BASE_URL", "")) or DEFAULT_AI_BASE_URL,
+        ai_model=os.getenv("AI_MODEL", "").strip() or DEFAULT_AI_MODEL,
         control_channel_id=_opt_int("ATLAS_CONTROL_CHANNEL_ID"),
         audit_path=os.getenv("ATLAS_AUDIT_PATH", "logs/audit.jsonl").strip() or "logs/audit.jsonl",
     )

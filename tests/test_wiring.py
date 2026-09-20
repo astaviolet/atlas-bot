@@ -16,7 +16,7 @@ import discord
 import pytest
 
 from atlas.bot import CONTROL_CHANNEL_NAME, CONTROL_TOPIC_MARK, ensure_control_channel, resolve_control_channel
-from atlas.ai import build_ai_client
+from atlas.ai import FailingModelClient, build_ai_client
 from atlas.embeds import EmbedKind
 from atlas.ai.openai_client import OpenAICompatibleClient, _parse
 from atlas.ai.schema import parse_tool_arguments, to_openai_tools
@@ -454,26 +454,73 @@ def test_parse_sem_choices_levanta():
         _parse(SimpleNamespace(choices=[]))
 
 
-def test_cliente_exige_credencial():
+def test_cliente_aceita_endpoint_anonimo():
+    """Chave vazia e valida: o endpoint publico ignora o header de auth."""
+    from atlas.config import NO_KEY_PLACEHOLDER
+
+    anon = OpenAICompatibleClient(api_key="", base_url="https://x", model_name="m")
+    assert anon.anonymous is True
+    # o SDK nao instancia com chave vazia, entao entra um marcador de protocolo
+    assert anon._client.api_key == NO_KEY_PLACEHOLDER
+
+    com_chave = OpenAICompatibleClient(api_key="k", base_url="https://x", model_name="m")
+    assert com_chave.anonymous is False
+    assert com_chave._client.api_key == "k"
+
+
+def test_cliente_ainda_exige_endereco_e_modelo():
+    """Anonimo vale para a chave, nao para o resto."""
     from atlas.errors import AIError
 
     with pytest.raises(AIError):
-        OpenAICompatibleClient(api_key="", base_url="https://x", model_name="m")
+        OpenAICompatibleClient(api_key="", base_url="", model_name="m")
     with pytest.raises(AIError):
-        OpenAICompatibleClient(api_key="k", base_url="", model_name="m")
-    with pytest.raises(AIError):
-        OpenAICompatibleClient(api_key="k", base_url="https://x", model_name="")
+        OpenAICompatibleClient(api_key="", base_url="https://x", model_name="")
 
 
-def test_build_ai_client_sem_credencial_devolve_cliente_que_falha():
-    from atlas.ai import FailingModelClient
+def test_build_ai_client_sem_chave_devolve_cliente_anonimo():
+    """Sem nenhuma credencial o bot ainda tem uma camada de IA funcional."""
     from atlas.config import Settings
 
-    client = build_ai_client(Settings(discord_token="t"), allow_missing=True)
-    assert isinstance(client, FailingModelClient)
+    client = build_ai_client(Settings(discord_token="t"))
+    assert isinstance(client, OpenAICompatibleClient)
+    assert client.anonymous is True
+    assert client.model_name  # sempre ha um modelo, nao depende de chave
 
-    with pytest.raises(Exception):
-        client.generate(system="s", history=[], tools=[])
+
+def test_configuracao_padrao_nao_exige_nenhuma_credencial_de_ia():
+    from atlas.config import Settings
+
+    s = Settings(discord_token="t")
+    assert s.missing() == [], "so o token do Discord e obrigatorio"
+    assert s.ai_base_url.startswith("https://")
+    assert s.ai_model
+
+
+def test_env_vazio_cai_no_padrao_anonimo(monkeypatch):
+    from atlas.config import DEFAULT_AI_BASE_URL, DEFAULT_AI_MODEL, load_settings
+
+    for k in ("AI_BASE_URL", "AI_API_KEY", "AI_MODEL"):
+        monkeypatch.delenv(k, raising=False)
+    s = load_settings(env_file=None, require_secrets=False)
+    assert s.ai_base_url == DEFAULT_AI_BASE_URL
+    assert s.ai_model == DEFAULT_AI_MODEL
+    assert s.ai_api_key == ""
+
+
+def test_env_preenchido_vence_o_padrao(monkeypatch):
+    """Quem quiser outro gateway troca tres variaveis, sem tocar no codigo."""
+    from atlas.config import load_settings
+
+    monkeypatch.setenv("AI_BASE_URL", "https://outro.gateway/v1/")
+    monkeypatch.setenv("AI_API_KEY", "outra-chave")
+    monkeypatch.setenv("AI_MODEL", "outro-modelo")
+    s = load_settings(env_file=None, require_secrets=False)
+    assert (s.ai_base_url, s.ai_model, s.ai_api_key) == (
+        "https://outro.gateway/v1", "outro-modelo", "outra-chave",
+    )
+    c = build_ai_client(s)
+    assert c.anonymous is False and c.model_name == "outro-modelo"
 
 
 def test_build_ai_client_com_credencial_devolve_cliente_openai():
@@ -529,21 +576,16 @@ def test_nenhum_provedor_esta_hardcoded_na_camada_de_ia():
     _ = json  # mantido para deixar explicito que a checagem e textual
 
 
-def test_bot_sem_credencial_responde_embed_explicando_o_que_falta(harness):
-    """Caminho real: bot sobe sem chave, conecta e responde com embed de erro."""
-    from atlas.config import Settings
-
+def test_falha_da_camada_de_ia_vira_embed_sem_tocar_a_rede(harness):
+    """Erro do provedor publico (limite, fora do ar) chega ao usuario como embed."""
     h = harness([], seed=False)
-    h.agent.model = build_ai_client(Settings(discord_token="t"), allow_missing=True)
+    h.agent.model = FailingModelClient("endpoint anonimo indisponivel")
 
     outcome = h.ask("cria um canal chamado geral")
 
     assert outcome.results == [], "nada pode ser executado sem o modelo planejar"
     assert len(outcome.embeds) == 1
     assert outcome.embeds[0].kind is EmbedKind.ERROR
-    assert "AI_API_KEY" in outcome.embeds[0].description
-
-
 # ------------------------------------- traducao de erro da fronteira OpenAI
 def _sdk_exc(cls, status=500):
     import httpx2
@@ -599,6 +641,7 @@ def test_generate_envolve_falha_do_sdk_em_AIError(monkeypatch):
     from atlas.errors import AIError
 
     client = OpenAICompatibleClient(api_key="k", base_url="https://gw/v1", model_name="m")
+    client.backoff_seconds = 0.0  # teste nao deve dormir no backoff
 
     def boom(**kwargs):
         raise _sdk_exc("RateLimitError", 429)
@@ -606,6 +649,68 @@ def test_generate_envolve_falha_do_sdk_em_AIError(monkeypatch):
     monkeypatch.setattr(client._client.chat.completions, "create", boom)
     with pytest.raises(AIError):
         client.generate(system="s", history=[], tools=[])
+
+
+def test_erro_permanente_nao_perde_tempo_tentando_de_novo(monkeypatch):
+    """Chave recusada nao e fila: falha na hora, sem retry nem failover."""
+    import openai
+    from atlas.errors import AIError
+
+    client = OpenAICompatibleClient(api_key="k", base_url="https://gw/v1", model_name="a,b,c")
+    client.backoff_seconds = 0.0
+    chamadas = []
+
+    def boom(**kwargs):
+        chamadas.append(kwargs["model"])
+        raise _sdk_exc("AuthenticationError", 401)
+
+    monkeypatch.setattr(client._client.chat.completions, "create", boom)
+    with pytest.raises(AIError):
+        client.generate(system="s", history=[], tools=[])
+    assert chamadas == ["a"], "401 nao deve passar para o proximo modelo"
+
+
+def test_failover_passa_para_o_proximo_modelo_quando_o_primeiro_esta_ocupado(monkeypatch):
+    """429/503 e fila, nao defeito: o proximo modelo da lista assume."""
+    import openai
+
+    client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name="ocupado,bom")
+    client.backoff_seconds = 0.0
+    vistos = []
+
+    def create(**kwargs):
+        vistos.append(kwargs["model"])
+        if kwargs["model"] == "ocupado":
+            raise _sdk_exc("RateLimitError", 429)
+        return _fake_response(text="respondeu o segundo")
+
+    monkeypatch.setattr(client._client.chat.completions, "create", create)
+    turno = client.generate(system="s", history=[], tools=[])
+
+    assert turno.text == "respondeu o segundo"
+    assert client.last_model == "bom"
+    assert vistos[0] == "ocupado" and "bom" in vistos
+
+
+def test_lista_de_modelos_vem_da_configuracao():
+    c = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name=" um , dois ,tres ")
+    assert c.models == ["um", "dois", "tres"]
+    assert c.model_name == "um"
+
+
+def test_lista_de_modelos_vazia_levanta():
+    from atlas.errors import AIError
+
+    with pytest.raises(AIError):
+        OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name=" , , ")
+
+
+def test_padrao_tem_mais_de_um_modelo_para_failover():
+    """Endpoint gratuito oscila; um modelo so derruba o bot."""
+    from atlas.config import DEFAULT_AI_MODEL
+
+    modelos = [m.strip() for m in DEFAULT_AI_MODEL.split(",") if m.strip()]
+    assert len(modelos) >= 2, "precisa de ao menos dois modelos para ter failover"
 
 
 # --------------------------------------------------------- ponta a ponta HTTP

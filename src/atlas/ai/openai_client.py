@@ -1,16 +1,22 @@
 """Cliente para gateway compativel com a API OpenAI.
 
-E o unico modulo do projeto que fala HTTP com um modelo. Serve para OmniRoute e
-para qualquer endpoint que exponha `POST /chat/completions` no formato OpenAI:
-trocar de provedor e trocar AI_BASE_URL / AI_MODEL, sem tocar no resto do bot.
+E o unico modulo do projeto que fala HTTP com um modelo. Serve para qualquer
+endpoint que exponha `POST /chat/completions` no formato OpenAI: trocar de
+provedor e trocar AI_BASE_URL / AI_MODEL, sem tocar no resto do bot.
+
+Aceita endpoint anonimo. Quando AI_API_KEY vem vazia, um marcador de protocolo
+entra no lugar - o SDK openai nao instancia com chave vazia, mas endpoints
+anonimos ignoram o header de autorizacao. O marcador nao e credencial.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import time
 from typing import Any
 
+from ..config import NO_KEY_PLACEHOLDER
 from ..errors import AIError
 from .base import FunctionCall, ModelTurn
 from .schema import parse_tool_arguments, to_openai_tools
@@ -27,6 +33,9 @@ class OpenAICompatibleClient:
     embutido, nem URL hardcoded. Tudo vem da configuracao.
     """
 
+    #: exposto para teste: o que vai no header quando nao ha chave
+    key_placeholder = NO_KEY_PLACEHOLDER
+
     def __init__(
         self,
         *,
@@ -36,11 +45,8 @@ class OpenAICompatibleClient:
         timeout: float = 60.0,
         max_retries: int = 2,
     ) -> None:
-        if not api_key:
-            raise AIError(
-                "AI_API_KEY vazia",
-                user_message="A chave da camada de IA nao esta configurada no .env.",
-            )
+        # endpoint anonimo: chave vazia e valida, o marcador satisfaz o SDK
+        self.anonymous = not api_key
         if not base_url:
             raise AIError(
                 "AI_BASE_URL vazia",
@@ -55,12 +61,26 @@ class OpenAICompatibleClient:
         from openai import OpenAI
 
         self._client = OpenAI(
-            api_key=api_key,
+            api_key=api_key or NO_KEY_PLACEHOLDER,
             base_url=base_url.rstrip("/"),
             timeout=timeout,
             max_retries=max_retries,
         )
-        self.model_name = model_name
+        # quantas vezes insistir em cada modelo antes de passar para o proximo
+        self.max_attempts_per_model = 3
+        self.backoff_seconds = 4.0
+        # AI_MODEL aceita lista separada por virgula: se o primeiro modelo
+        # estiver ocupado ou fora do ar, o proximo assume. Endpoints publicos
+        # gratuitos oscilam muito, entao failover nao e luxo, e o que faz o
+        # bot funcionar na pratica.
+        self.models = [m.strip() for m in model_name.split(",") if m.strip()]
+        if not self.models:
+            raise AIError(
+                "AI_MODEL sem nenhum modelo valido",
+                user_message="Nenhum modelo de IA foi configurado no .env.",
+            )
+        self.model_name = self.models[0]
+        self.last_model: str | None = None
 
     # ------------------------------------------------------------- historico
     @staticmethod
@@ -129,20 +149,55 @@ class OpenAICompatibleClient:
         messages = self.to_messages(history, system=system)
         openai_tools = to_openai_tools(tools)
 
-        kwargs: dict[str, Any] = {
-            "model": self.model_name,
-            "messages": messages,
-            "temperature": DEFAULT_TEMPERATURE,
-        }
         if openai_tools:
-            kwargs["tools"] = openai_tools
+            tools_payload = openai_tools
+        else:
+            tools_payload = None
 
-        try:
-            response = self._client.chat.completions.create(**kwargs)
-        except Exception as exc:  # noqa: BLE001 - fronteira externa
-            raise _translate(exc, self.model_name) from exc
+        ultimo_erro: Exception | None = None
+        tentativa = 0
+        for modelo in self.models:
+            for _ in range(self.max_attempts_per_model):
+                tentativa += 1
+                kwargs: dict[str, Any] = {
+                    "model": modelo,
+                    "messages": messages,
+                    "temperature": DEFAULT_TEMPERATURE,
+                }
+                if tools_payload:
+                    kwargs["tools"] = tools_payload
 
-        return _parse(response)
+                try:
+                    response = self._client.chat.completions.create(**kwargs)
+                except Exception as exc:  # noqa: BLE001 - fronteira externa
+                    ultimo_erro = exc
+                    if not _is_retryable(exc):
+                        raise _translate(exc, modelo) from exc
+                    log.warning(
+                        "modelo %s indisponivel (%s); tentando de novo", modelo, type(exc).__name__
+                    )
+                    time.sleep(self.backoff_seconds * tentativa)
+                    continue
+
+                self.last_model = modelo
+                return _parse(response)
+
+        assert ultimo_erro is not None
+        raise _translate(ultimo_erro, self.model_name) from ultimo_erro
+
+
+def _is_retryable(exc: Exception) -> bool:
+    """Erros transitorios: modelo ocupado, limite, timeout, conexao.
+
+    Endpoints publicos gratuitos devolvem 429/503 o tempo todo. Isso nao e
+    falha de configuracao, e fila - vale insistir antes de desistir.
+    """
+    import openai
+
+    if isinstance(exc, (openai.RateLimitError, openai.APITimeoutError, openai.APIConnectionError)):
+        return True
+    status = getattr(exc, "status_code", None)
+    return status in (408, 409, 425, 429, 500, 502, 503, 504)
 
 
 def _translate(exc: Exception, model_name: str) -> AIError:

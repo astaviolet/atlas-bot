@@ -66,31 +66,27 @@ jobs:
           pip install -r requirements.txt
           pip install -e .
 
-      # Imprime so o NOME do que falta. Nenhum valor de segredo e escrito no log.
+      # Unico segredo obrigatorio: o token do bot. Isso e exigencia do Discord,
+      # nao do projeto - sem token nao ha como conectar. A camada de IA usa um
+      # endpoint publico anonimo e nao precisa de chave nenhuma.
+      # Imprime so o NOME do que falta; nenhum valor de segredo vai para o log.
       - name: Conferir segredos
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-          AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_MODEL: ${{ secrets.AI_MODEL }}
         run: |
-          faltando=""
-          for v in DISCORD_TOKEN AI_API_KEY AI_BASE_URL AI_MODEL; do
-            if [ -z "${!v}" ]; then faltando="$faltando $v"; fi
-          done
-          if [ -n "$faltando" ]; then
-            echo "::error::Segredos ausentes:$faltando"
+          if [ -z "$DISCORD_TOKEN" ]; then
+            echo "::error::Falta o segredo DISCORD_TOKEN"
             echo "Crie em: Settings > Secrets and variables > Actions > New repository secret."
             exit 1
           fi
-          echo "Segredos obrigatorios presentes."
+          echo "DISCORD_TOKEN presente."
 
       - name: Conferir configuração
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
           ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
         run: python main.py --check
 
@@ -98,8 +94,8 @@ jobs:
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
           AI_API_KEY: ${{ secrets.AI_API_KEY }}
-          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
-          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
           ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
           PYTHONUNBUFFERED: "1"
           MAX_RUN_SECONDS: "20700"
