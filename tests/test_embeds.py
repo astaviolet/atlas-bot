@@ -433,3 +433,68 @@ def _resultado(*, ok: bool, verified: bool | None = True, nome: str = "get_serve
         user_message=None,
         error=None,
     )
+
+
+# ------------------------------------------------- spec 157: contagem de conclusao
+def _res(tool: str, ok: bool = True):
+    from atlas.queue import ActionResult, PlannedAction
+
+    return ActionResult(
+        action=PlannedAction(tool=tool, params={}, label=tool), ok=ok,
+        error=None if ok else "falhou",
+    )
+
+
+def test_operacao_pequena_nao_recebe_contagem():
+    """O usuario pediu resposta minima: 'apaguei o canal' e nada mais. Contagem
+    em operacao de 1 acao e ruido."""
+    from atlas.formatting import linha_de_contagem
+
+    assert linha_de_contagem([_res("delete_channel")], []) == ""
+    assert linha_de_contagem([_res(f"create_channel") for _ in range(3)], []) == ""
+
+
+def test_operacao_grande_recebe_contagem():
+    from atlas.formatting import linha_de_contagem
+
+    ok = [_res("create_category")] + [_res("create_channel") for _ in range(7)] + \
+         [_res("edit_role"), _res("move_channel")]
+    linha = linha_de_contagem(ok, [])
+    assert "Criados: 8" in linha
+    assert "Alterados: 2" in linha
+    assert "Não concluídos" not in linha
+
+
+def test_contagem_inclui_o_que_nao_deu():
+    """Spec 157: 'Nao concluidos' faz parte da conclusao. Esconder falha em
+    operacao grande e o pior lugar para esconder."""
+    from atlas.formatting import linha_de_contagem
+
+    ok = [_res("create_channel") for _ in range(9)]
+    falhas = [_res("create_channel", ok=False) for _ in range(2)]
+    linha = linha_de_contagem(ok, falhas)
+    assert "Não concluídos: 2" in linha
+
+
+def test_contagem_nao_vaza_nome_de_ferramenta():
+    """O usuario reclamou de ver 'create_channel' na resposta. A contagem tem que
+    falar em criados/alterados, nao em nome de tool."""
+    from atlas.formatting import linha_de_contagem
+
+    ok = [_res("create_channel") for _ in range(10)]
+    linha = linha_de_contagem(ok, [])
+    assert "create_channel" not in linha
+    assert "_" not in linha.replace("Não concluídos", "")
+
+
+def test_result_embeds_montagem_real():
+    from atlas.config import Limits
+    from atlas.embeds import EmbedBuilder
+    from atlas.formatting import result_embeds
+
+    b = EmbedBuilder(Limits())
+    ok = [_res("create_category")] + [_res("create_channel") for _ in range(9)]
+    embeds = result_embeds(b, ok)
+    assert embeds
+    corpo = embeds[0].description or ""
+    assert "Criados: 10" in corpo

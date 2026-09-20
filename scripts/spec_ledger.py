@@ -179,6 +179,8 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     185: (PROCESSO, "docs/AUDITORIA.md", "sem placeholder, mock escondido, sucesso falso"),
     186: (PROCESSO, "docs/AUDITORIA.md", "limites de autonomia registrados"),
     187: (PROCESSO, "docs/AUDITORIA.md", "fase 0 foi auditoria, fase 1 foi roadmap real"),
+    139: (PRONTA, "tests/test_catalogo.py", "registrar_feedback por guild; promover exige fonte não vazia"),
+    157: (PRONTA, "tests/test_embeds.py", "contagem Criados/Alterados/Não concluídos em operação grande; pequena fica só na frase"),
     21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
     25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
     26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),

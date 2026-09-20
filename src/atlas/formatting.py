@@ -17,6 +17,42 @@ def _group(results: Sequence[ActionResult]) -> tuple[list[ActionResult], list[Ac
     return ok, failed
 
 
+#: Acima disto a contagem entra. Abaixo, o checklist ja basta e a contagem seria
+#: ruido — que e exatamente o que o usuario pediu para nao receber.
+_LIMIAR_CONTAGEM = 8
+
+
+def linha_de_contagem(
+    ok: Sequence[ActionResult], failed: Sequence[ActionResult]
+) -> str:
+    """Linha de contagem da spec 157, ou "" se a operacao for pequena.
+
+    Conta por FERRAMENTA, nao por nome de tool: 'create_channel' e 'criados',
+    'edit_*'/'move_*' e 'alterados'. Devolver o nome cru da ferramenta para o
+    usuario e o defeito que ele reclamou ("nao quero informacao desnecessaria").
+    """
+    if len(ok) + len(failed) < _LIMIAR_CONTAGEM:
+        return ""
+
+    criados = sum(1 for r in ok if r.action.tool.startswith("create_"))
+    alterados = sum(
+        1 for r in ok
+        if r.action.tool.startswith(("edit_", "move_", "set_", "reorder_"))
+    )
+    outros = len(ok) - criados - alterados
+
+    partes = []
+    if criados:
+        partes.append(f"Criados: {criados}")
+    if alterados:
+        partes.append(f"Alterados: {alterados}")
+    if outros > 0:
+        partes.append(f"Outros: {outros}")
+    if failed:
+        partes.append(f"Não concluídos: {len(failed)}")
+    return " · ".join(partes)
+
+
 def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> list[EmbedSpec]:
     """So o essencial. O usuario pediu para nao receber informacao desnecessaria.
 
@@ -36,6 +72,15 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
 
     if ok:
         body = "\n".join(f"- {r.action.describe()}" for r in ok)
+        # Spec 157 pede contagem (Criados / Alterados / Não concluídos). Mas o
+        # usuario pediu explicitamente resposta minima: "ele deve mandar apenas
+        # Apaguei o canal". Os dois valem - entao a contagem entra SO quando a
+        # operacao e grande o bastante para o checklist nao dar conta sozinho.
+        # Em "apague um canal" ela seria ruido; em "monte um servidor" e a unica
+        # forma de saber o que aconteceu sem ler 30 linhas.
+        contagem = linha_de_contagem(ok, failed)
+        if contagem:
+            body = f"{contagem}\n\n{body}"
         embeds.append(builder.build(EmbedKind.SUCCESS, "", body))
 
     unverified = [r for r in ok if r.verified is False]

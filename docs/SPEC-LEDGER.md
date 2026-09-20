@@ -147,7 +147,7 @@ Seções na spec: **188**
 | 136 | DESIGN SCORE INTERNO | PRONTA | `tests/test_design_system.py` | 7 critérios com pontos e motivo |
 | 137 | REVISÃO ANTES DE EXECUTAR | PRONTA | `tests/test_design_system.py` | precisa_refazer, limiar 8.0 |
 | 138 | REVISÃO DEPOIS DE EXECUTAR | PARCIAL | `src/atlas/agent.py` | _qa_pos_execucao existe e a divergência é testada em test_autofix, mas falta teste dedicado do laço estado-real-vs-design |
-| 139 | APRENDIZADO POR FEEDBACK | ABERTA | `—` |  |
+| 139 | APRENDIZADO POR FEEDBACK | PRONTA | `tests/test_catalogo.py` | registrar_feedback por guild; promover exige fonte não vazia |
 | 140 | NÃO REPETIR ERROS | PRONTA | `tests/test_catalogo.py` | feedback por guild, promover exige fonte |
 | 141 | PESQUISA CONTÍNUA DE DESIGN | FORA DE ESCOPO | `decisão` | pesquisa contínua de design: fora de escopo (sem busca na web) |
 | 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | FORA DE ESCOPO | `decisão` | pesquisa contínua de tecnologia: fora de escopo |
@@ -165,7 +165,7 @@ Seções na spec: **188**
 | 154 | EVENTUAL CONSISTENCY | PRONTA | `tests/test_wiring.py` | verificar exclusão usa retry — o Discord pode não refletir na hora |
 | 155 | OPERAÇÕES EM LOTE | PRONTA | `tests/test_batch.py` | lote respeita a cota e reporta falhas |
 | 156 | PROGRESSO | PRONTA | `tests/test_progresso.py` | progresso informado |
-| 157 | CONCLUSÃO | ABERTA | `—` |  |
+| 157 | CONCLUSÃO | PRONTA | `tests/test_embeds.py` | contagem Criados/Alterados/Não concluídos em operação grande; pequena fica só na frase |
 | 158 | CANCELAMENTO SEGURO | PRONTA | `76ae5c1` | cancelamento cooperativo |
 | 159 | AUDITORIA FINAL DO SISTEMA | PROCESSO | `docs/AUDITORIA.md` | re-auditoria do sistema |
 | 160 | REGRA DE "DONE" | PROCESSO | `docs/AUDITORIA.md` | regra de DONE: o gerador do razão exige teste para marcar PRONTA |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **124**
+- PRONTA: **126**
 - PARCIAL: **7**
-- ABERTA: **14**
+- ABERTA: **12**
 - FORA DE ESCOPO: **12**
 - PROCESSO: **31**
 - Total: **188**
