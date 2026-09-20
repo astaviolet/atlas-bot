@@ -997,3 +997,37 @@ def test_prompt_orienta_a_nao_duplicar_o_que_ja_existe():
         "o prompt precisa proibir duplicata explicitamente"
     assert "so voce evita a duplicata" in texto, \
         "o prompt precisa explicar que o Discord nao impede nome repetido"
+
+
+# ------------------------------------------------- autorizacao por mencao
+def test_mencao_autoriza_canal_fora_do_controle():
+    """Chamar o bot em outro canal tem que funcionar, nao ficar em silencio."""
+    from atlas.bot import mensagem_autorizada
+
+    controle = FakeTextChannel(10, "atlas-config")
+    outro = FakeTextChannel(11, "bate-papo")
+    assert mensagem_autorizada(control=controle, message_channel=outro, mencionado=True) is True
+
+
+def test_sem_mencao_fora_do_controle_e_ignorada():
+    from atlas.bot import mensagem_autorizada
+
+    controle = FakeTextChannel(10, "atlas-config")
+    outro = FakeTextChannel(11, "bate-papo")
+    assert mensagem_autorizada(control=controle, message_channel=outro, mencionado=False) is False
+
+
+def test_dentro_do_controle_nao_precisa_de_mencao():
+    from atlas.bot import mensagem_autorizada
+
+    controle = FakeTextChannel(10, "atlas-config")
+    assert mensagem_autorizada(control=controle, message_channel=controle, mencionado=False) is True
+
+
+def test_sem_canal_de_controle_mencao_ainda_funciona():
+    """Servidor novo sem canal configurado: mencionar o bot tem que atender."""
+    from atlas.bot import mensagem_autorizada
+
+    canal = FakeTextChannel(11, "geral")
+    assert mensagem_autorizada(control=None, message_channel=canal, mencionado=True) is True
+    assert mensagem_autorizada(control=None, message_channel=canal, mencionado=False) is False

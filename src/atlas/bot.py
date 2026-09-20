@@ -39,6 +39,26 @@ class ControlChannelError(RuntimeError):
     """Nao foi possivel resolver o canal de controle."""
 
 
+def mensagem_autorizada(
+    *,
+    control: discord.abc.GuildChannel | None,
+    message_channel: discord.abc.GuildChannel,
+    mencionado: bool,
+) -> bool:
+    """Decide se o bot atende esta mensagem.
+
+    Mencao direta autoriza o canal para aquela mensagem - sem isso a pessoa
+    chama o bot em qualquer outro canal e nao acontece nada, sem feedback.
+    A seguranca nao depende desta funcao: guild, politica e hierarquia valem
+    igual em qualquer canal.
+    """
+    if mencionado:
+        return True
+    if control is None:
+        return False
+    return control.id == message_channel.id
+
+
 def resolve_control_channel(
     guild: discord.Guild,
     *,
@@ -143,24 +163,39 @@ class AtlasBot(discord.Client):
             message.author, (message.content or "")[:80],
         )
 
+        # Mencionou o bot, o canal esta autorizado para ESTA mensagem. Sem isso
+        # a pessoa chama o bot e nao acontece nada, sem nenhum feedback - que e
+        # exatamente a pior forma de falhar. A seguranca nao mora aqui: guild,
+        # politica e permissoes continuam valendo igual em qualquer canal.
+        mencionado = self.user is not None and self.user in message.mentions
+
         control = resolve_control_channel(
             guild,
             configured_id=self.settings.control_channel_id,
             message_channel=message.channel,
         )
-        if control is None:
-            log.info(
-                "ignorada: este servidor nao tem canal de controle "
-                "(configure ATLAS_CONTROL_CHANNEL_ID ou crie um canal chamado %s)",
-                CONTROL_CHANNEL_NAME,
-            )
+        if not mensagem_autorizada(
+            control=control, message_channel=message.channel, mencionado=mencionado
+        ):
+            if control is None:
+                log.info(
+                    "ignorada: este servidor nao tem canal de controle "
+                    "(configure ATLAS_CONTROL_CHANNEL_ID, crie um canal chamado %s "
+                    "ou me mencione)",
+                    CONTROL_CHANNEL_NAME,
+                )
+            else:
+                log.info(
+                    "ignorada: canal de controle e #%s (id %s), mensagem veio de outro "
+                    "lugar. Para falar comigo em outro canal, me mencione.",
+                    control.name, control.id,
+                )
             return
-        if control.id != message.channel.id:
+        if mencionado:
             log.info(
-                "ignorada: canal de controle e #%s (id %s), mensagem veio de outro lugar",
-                control.name, control.id,
+                "bot mencionado em #%s: canal autorizado para esta mensagem",
+                getattr(message.channel, "name", "?"),
             )
-            return
 
         text = (message.content or "").strip()
         if not text:

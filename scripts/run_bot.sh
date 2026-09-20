@@ -23,6 +23,24 @@ LOG_FILE="${LOG_DIR}/bot.log"
 [ -x "$PYTHON" ] || PYTHON="python3"
 mkdir -p "$LOG_DIR"
 
+# ---------------------------------------------------------------------------
+# Trava de instancia unica. Dois bots com o mesmo token brigam pela mesma
+# sessao do gateway do Discord: um derruba a conexao do outro, e o usuario ve
+# resposta duplicada ou nenhuma. Aconteceu de verdade - tres instancias
+# rodando ao mesmo tempo. Melhor recusar a segunda do que competir.
+LOCK="${LOCK_DIR:-/tmp}/atlas-bot.lock"
+if [ -f "$LOCK" ]; then
+  pid_antigo=$(cat "$LOCK" 2>/dev/null || echo "")
+  if [ -n "$pid_antigo" ] && kill -0 "$pid_antigo" 2>/dev/null; then
+    echo "[supervisor] ja existe uma instancia rodando (pid $pid_antigo). Saindo."
+    echo "[supervisor] se for resto de crash, apague $LOCK e rode de novo."
+    exit 0
+  fi
+  echo "[supervisor] trava obsoleta (pid $pid_antigo nao existe); assumindo."
+fi
+echo $$ > "$LOCK"
+rm_lock() { [ -f "$LOCK" ] && [ "$(cat "$LOCK" 2>/dev/null)" = "$$" ] && rm -f "$LOCK"; }
+
 INICIO=$(date +%s)
 tentativa=0
 falhas_rapidas=0
@@ -31,9 +49,11 @@ BOT_PID=""
 encerrar() {
   echo "[supervisor] sinal recebido, derrubando o bot."
   [ -n "$BOT_PID" ] && kill -TERM "$BOT_PID" 2>/dev/null
+  rm_lock
   exit 0
 }
 trap encerrar TERM INT
+trap rm_lock EXIT
 
 agora() { date +%s; }
 
