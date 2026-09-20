@@ -991,11 +991,15 @@ def test_prompt_orienta_a_nao_duplicar_o_que_ja_existe():
     # Frases exatas: as palavras soltas tambem aparecem em outras partes do
     # prompt (lista de ferramentas, por exemplo), entao so a frase completa
     # garante que a orientacao esta mesmo ali.
-    assert "chame get_categories e get_channels" in texto, \
-        "o prompt precisa mandar listar categorias antes de criar"
-    assert "Nao crie o que ja existe." in texto, \
+    assert "Nao crie o que ja existe" in texto, \
+        "o prompt precisa mandar conferir antes de criar"
+    # get_server_info ja traz canais, categorias e cargos. Mandar chamar os
+    # tres depois fazia o modelo pagar ~730 tokens por dado duplicado.
+    assert "repetir" in texto and "nao faca" in texto, \
+        "o prompt tem que proibir a releitura redundante"
+    assert "Nao crie o que ja existe" in texto, \
         "o prompt precisa proibir duplicata explicitamente"
-    assert "so voce evita a duplicata" in texto, \
+    assert "so voce evita" in texto, \
         "o prompt precisa explicar que o Discord nao impede nome repetido"
 
 
@@ -1170,14 +1174,14 @@ def test_prompt_informa_o_canal_atual_para_resolver_este_canal():
     alvo = snap.channels[0]
 
     _, texto = _prompt(alvo.id)
-    assert f"canal atual: #{alvo.name} (id {alvo.id})" in texto
-    assert "Nao chute e nao pergunte de volta" in texto
+    assert f"canal atual #{alvo.name} (id {alvo.id})" in texto
+    assert "nao chute nem pergunte" in texto
 
 
 def test_prompt_sem_canal_de_origem_manda_perguntar_em_vez_de_chutar():
     _, texto = _prompt(None)
     assert "canal de origem desconhecido" in texto
-    assert "pergunte qual e em vez de chutar" in texto
+    assert "pergunte em vez de chutar" in texto
 
 
 def test_bot_passa_o_canal_da_mensagem_para_o_contexto(monkeypatch):
@@ -1251,7 +1255,7 @@ def test_agente_repassa_o_canal_de_origem_ao_prompt(harness):
     h.ask("oi")
 
     assert h.model.system_prompts, "o modelo nao foi chamado"
-    assert f"canal atual: #{alvo.name} (id {alvo.id})" in h.model.system_prompts[0], (
+    assert f"canal atual #{alvo.name} (id {alvo.id})" in h.model.system_prompts[0], (
         "o agente montou o prompt sem o canal de origem"
     )
 
@@ -1278,7 +1282,7 @@ def test_prompt_informa_quem_esta_pedindo(harness):
     h.ask("oi")
 
     prompt = h.model.system_prompts[0]
-    assert "QUEM ESTA PEDINDO" in prompt
+    assert "QUEM PEDE:" in prompt
     assert "ek8a (id 555)" in prompt
     # identidade e contexto, nao autorizacao - isso tem que estar dito
-    assert "isto e contexto, nao autorizacao" in prompt
+    assert "contexto, nao autorizacao" in prompt

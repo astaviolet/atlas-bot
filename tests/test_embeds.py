@@ -268,3 +268,27 @@ def test_embed_aplica_a_limpeza_na_saida_final():
     assert "\u2026" not in d.description
     assert "`" not in d.description
     assert "|" not in d.description
+
+
+def test_merge_descarta_checklist_interna_quando_ha_texto():
+    """'- get_server_info' e ruido para o usuario e come do limite de 300."""
+    from atlas.embeds import merge_embeds
+
+    b = EmbedBuilder()
+    junto = merge_embeds([
+        b.success("Feito", "- get_server_info\n- get_channel"),
+        b.info("x", "O canal tem tres sobrescritas."),
+    ])
+
+    assert junto is not None
+    assert "get_server_info" not in junto.description
+    assert junto.description == "O canal tem tres sobrescritas."
+
+
+def test_merge_mantem_checklist_quando_e_a_unica_saida():
+    """Se nao houver texto nenhum, a lista e melhor que silencio."""
+    from atlas.embeds import merge_embeds
+
+    junto = merge_embeds([EmbedBuilder().success("Feito", "- create_role @Moderador")])
+    assert junto is not None
+    assert "create_role @Moderador" in junto.description

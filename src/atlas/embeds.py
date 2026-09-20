@@ -122,16 +122,33 @@ _SEVERIDADE: list[EmbedKind] = [
 ]
 
 
+def _so_checklist(spec: EmbedSpec) -> bool:
+    """True se o embed e so a lista interna de acoes executadas."""
+    linhas = [l for l in (spec.description or "").split("\n") if l.strip()]
+    if not linhas:
+        return False
+    return all(l.strip().startswith("- ") for l in linhas)
+
+
 def merge_embeds(specs: list[EmbedSpec]) -> EmbedSpec | None:
     """Junta varios embeds em UM so.
 
     O bot sempre responde com uma unica mensagem. Antes ele mandava ate tres
     (lista de acoes + explicacao + resumo), o que fazia a resposta parecer
     picotada no meio da conversa.
+
+    Quando ha texto de verdade, a lista interna de acoes ("- get_server_info")
+    cai fora: e ruido para quem le e come do limite de tamanho. So sobrevive
+    quando ela e a unica coisa que existe.
     """
     uteis = [s for s in specs if (s.description or "").strip() or s.fields]
     if not uteis:
         return None
+
+    com_texto = [s for s in uteis if not _so_checklist(s)]
+    if com_texto and len(com_texto) < len(uteis):
+        uteis = com_texto
+
     if len(uteis) == 1:
         return uteis[0]
 

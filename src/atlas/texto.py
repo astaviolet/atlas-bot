@@ -18,7 +18,7 @@ import unicodedata
 #: Limite de caracteres da descricao de uma resposta. O usuario pediu para
 #: nunca mandar mensagem grande; 900 da para uma explicacao completa sem virar
 #: um muro de texto no meio da conversa.
-MAX_DESCRICAO = 900
+MAX_DESCRICAO = 300
 
 # ---------------------------------------------------------------------------
 # Substituicoes de caractere
