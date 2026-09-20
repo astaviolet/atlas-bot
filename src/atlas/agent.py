@@ -15,6 +15,7 @@ from typing import Any
 from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .conferencia import conferir_contagem
+from .intencao import pedido_acionavel, resposta_para_cumprimento
 from .config import Limits
 from .design_check import auditar_servidor
 from .ai.classificacao import classificar
@@ -335,6 +336,23 @@ class Agent:
 
     # ------------------------------------------------------------ laco do modelo
     async def _run_loop(self, text: str, session: Session) -> AgentOutcome:
+        # Cumprimento nao e pedido. Medido em producao: "ei" virou "Vou criar um
+        # canal chamado torneios" porque o modelo gratuito inventa tarefa quando
+        # o prompt so fala de configurar servidor. classificar() nao pega isso -
+        # ela mede complexidade, nao intencao. Decisao em codigo, antes de
+        # gastar chamada de IA (spec 185: nada de sucesso falso).
+        if not pedido_acionavel(text):
+            log.info("mensagem sem pedido acionavel; respondendo sem chamar IA")
+            self.audit.record(
+                action="agent.no_intent",
+                guild_id=self.ctx.guild_id,
+                params={"chars": len(text)},
+                result="ok",
+            )
+            resposta = self.builder.info("Atlas", resposta_para_cumprimento(text))
+            resposta.protegido = True
+            return self._com_estado(AgentOutcome(embeds=[resposta]))
+
         # Spec 107: classificar uma vez, antes da primeira chamada. O tamanho do
         # contexto entra na conta porque conversa longa muda o que a rota aguenta.
         classe_tarefa = classificar(

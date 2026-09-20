@@ -1297,7 +1297,7 @@ def test_agente_repassa_o_canal_de_origem_ao_prompt(harness):
     alvo = h.gateway.snapshot().channels[0]
     h.ctx.source_channel_id = alvo.id
 
-    h.ask("oi")
+    h.ask("cria um canal de avisos")  # "oi" agora e barrado como cumprimento (spec: intencao)
 
     assert h.model.system_prompts, "o modelo nao foi chamado"
     assert f"canal atual #{alvo.name} (id {alvo.id})" in h.model.system_prompts[0], (
@@ -1311,7 +1311,7 @@ def test_agente_sem_canal_de_origem_avisa_o_modelo(harness):
     h = harness([final("ok")])
     h.ctx.source_channel_id = None
 
-    h.ask("oi")
+    h.ask("cria um canal de avisos")  # "oi" agora e barrado como cumprimento (spec: intencao)
 
     assert "canal de origem desconhecido" in h.model.system_prompts[0]
 
@@ -1324,7 +1324,7 @@ def test_prompt_informa_quem_esta_pedindo(harness):
     h.ctx.source_author_id = 555
     h.ctx.source_author_name = "ek8a"
 
-    h.ask("oi")
+    h.ask("cria um canal de avisos")  # "oi" agora e barrado como cumprimento (spec: intencao)
 
     prompt = h.model.system_prompts[0]
     assert "QUEM PEDE:" in prompt
@@ -1443,7 +1443,7 @@ def test_prazo_generoso_nao_atrapalha_pedido_normal(harness):
 
     h = harness([turn(("get_server_info", {})), final("pronto")],
                 limits=Limits(deadline_seconds=90.0))
-    out = h.ask("oi")
+    out = h.ask("cria um canal de avisos")  # "oi" agora e barrado como cumprimento (spec: intencao)
     assert any("pronto" in e.description for e in out.embeds)
 
 
