@@ -83,6 +83,12 @@ class Limits:
     build_confirm_threshold: int = 15
     #: A partir de quantas acoes o plano ganha snapshot logico antes de executar.
     snapshot_threshold: int = 5
+    #: Backpressure (spec 149): teto de acoes por plano e de guilds executando.
+    backpressure_max_acoes: int = 120
+    backpressure_max_guilds: int = 4
+    #: Fairness (spec 150): cota por guild em janela deslizante.
+    fairness_max_acoes: int = 200
+    fairness_janela_segundos: float = 60.0
 
     # texto
     max_embed_description: int = 1800

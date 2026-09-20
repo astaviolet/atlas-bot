@@ -22,6 +22,7 @@ from typing import Any
 
 from .audit import AuditLog
 from .design_check import checar_plano
+from .flow_control import Backpressure, GuildQuota
 from .snapshot_store import SnapshotStore
 from .errors import ConfirmationRequired, ToolError
 from .models import GuildSnapshot
@@ -81,9 +82,18 @@ class Executor:
         audit: AuditLog,
         policy: Policy,
         snapshots: SnapshotStore | None = None,
+        flow: Backpressure | None = None,
+        quota: GuildQuota | None = None,
     ) -> None:
         self.ctx = ctx
         self.snapshots = snapshots or SnapshotStore()
+        limites = ctx.limits
+        self.flow = flow or Backpressure(
+            limites.backpressure_max_acoes, limites.backpressure_max_guilds,
+        )
+        self.quota = quota or GuildQuota(
+            limites.fairness_max_acoes, limites.fairness_janela_segundos,
+        )
         self.registry = registry
         self.queue = queue
         self.audit = audit
@@ -185,6 +195,44 @@ class Executor:
 
         counts = ActionQueue.partition(actions)
         self.policy.check_budget(**counts)
+
+        # 5c. backpressure (spec 149). Recusar AQUI, e nao no meio da execucao:
+        # quando o modelo ja planejou, o custo de IA esta pago. Recusar cedo e
+        # mais barato e mais honesto do que comecar e morrer na acao 300.
+        if not self.flow.plano_cabe(counts.get("actions", 0)):
+            self.audit.record(
+                action="flow.backpressure", guild_id=self.ctx.guild_id,
+                params={"acoes": counts.get("actions", 0),
+                        "teto": self.flow.max_pendentes_por_guild},
+                result="blocked",
+            )
+            raise ToolError(
+                f"plano de {counts.get('actions', 0)} acoes passa do teto de "
+                f"{self.flow.max_pendentes_por_guild}",
+                user_message=(
+                    f"Esse pedido virou {counts.get('actions', 0)} acoes de uma vez. "
+                    f"Meu teto e {self.flow.max_pendentes_por_guild} por vez - vamos por partes?"
+                ),
+            )
+
+        # 5d. fairness (spec 150). Cota por guild em janela deslizante: um
+        # servidor nao pode consumir o pool inteiro enquanto outro espera.
+        if self.quota.estourou(self.ctx.guild_id):
+            espera = self.quota.espera_restante(self.ctx.guild_id)
+            self.audit.record(
+                action="flow.quota_exceeded", guild_id=self.ctx.guild_id,
+                params={"usadas": self.quota.usadas(self.ctx.guild_id),
+                        "teto": self.quota.max_acoes, "espera_s": round(espera, 1)},
+                result="blocked",
+            )
+            raise ToolError(
+                f"cota de {self.quota.max_acoes} acoes/{self.quota.window_seconds:.0f}s esgotada",
+                user_message=(
+                    f"Este servidor ja usou as {self.quota.max_acoes} acoes desta janela. "
+                    f"Libera em {int(espera) + 1}s - assim os outros servidores nao ficam esperando."
+                ),
+            )
+        self.quota.admitir(self.ctx.guild_id, counts.get("actions", 0))
 
         # 6. confirmacao
         token = self._plan_token(actions)
