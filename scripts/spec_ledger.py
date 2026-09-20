@@ -18,6 +18,8 @@ REGRAS ANTI-INVENÇÃO (o motivo de não ser uma tabela escrita à mão)
    docs/SPEC.md, o script falha: impede status de seção que a spec não tem.
 4. **Nada de chute por nome.** O status não é inferido de grep em src/ — grep
    prova que uma palavra aparece, não que o requisito foi implementado.
+5. **PRONTA exige teste** (spec 160). Evidência em `src/` sozinha vale no máximo
+   PARCIAL: "o código foi escrito" não é conclusão.
 
 USO
     python scripts/spec_ledger.py            # gera docs/SPEC-LEDGER.md
@@ -46,42 +48,80 @@ FORA = "FORA DE ESCOPO"
 _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     11: (PARCIAL, "src/atlas/design.py", "proposta é gerada, mas plano != execução ainda depende do modelo seguir"),
     12: (PRONTA, "46b867f", "dry run / simulação"),
-    21: (PRONTA, "src/atlas/dependencias.py", "ordenação por dependência de execução"),
-    25: (PRONTA, "src/atlas/autofix.py", "auto-correção antes de falhar"),
-    26: (PRONTA, "src/atlas/design_system.py", "composição domínio x porte x público x estilo"),
+    7: (PRONTA, "tests/test_security.py", "guild_id estranho é ignorado e não autoriza"),
+    8: (PRONTA, "tests/test_security.py", "bind_guild recusa outro servidor; chaves de guild removidas em massa"),
+    13: (PRONTA, "tests/test_tools_basic.py", "categoria pedida duas vezes não duplica"),
+    14: (PRONTA, "tests/test_policy.py", "registry tem exatamente as ferramentas permitidas"),
+    15: (PRONTA, "tests/test_tools_basic.py", "configuração inválida é recusada"),
+    16: (PRONTA, "tests/test_policy.py", "policy recusa cada capacidade proibida"),
+    17: (PRONTA, "tests/test_security.py", "ação proibida recusada; nenhuma ferramenta proibida registrada"),
+    18: (PRONTA, "tests/test_batch.py", "exclusão múltipla exige confirmação; ambígua não executa"),
+    19: (PRONTA, "tests/test_batch.py", "confirmação vencida não executa"),
+    20: (PRONTA, "tests/test_wiring.py", "executor centralizado testado de ponta a ponta"),
+    22: (PRONTA, "tests/test_batch.py", "lote com falha parcial reporta o que falhou"),
+    23: (PRONTA, "tests/test_batch.py", "sucesso parcial reportado, não fingido"),
+    24: (PRONTA, "tests/test_errors.py", "verificação detecta mudança que não aconteceu"),
+    50: (PRONTA, "tests/test_security.py", "prompt injection bloqueado; unicode invisível detectado"),
+    56: (PRONTA, "tests/test_router.py", "falhas repetidas colocam a rota em cooldown"),
+    57: (PRONTA, "tests/test_router.py", "falha transitória vai para a próxima rota"),
+    58: (PRONTA, "tests/test_router.py", "pedido com tools exige rota com tool calling"),
+    59: (PRONTA, "tests/test_router.py", "só informa limitação depois de esgotar o pool"),
+    60: (PRONTA, "tests/test_router.py", "carga se distribui em vez de empilhar na primeira rota"),
+    61: (PRONTA, "tests/test_router.py", "cooldown acaba e a rota volta em half-open"),
+    62: (PRONTA, "tests/test_router.py", "cooldown cresce a cada queda seguida"),
+    64: (PRONTA, "tests/test_flow_control.py", "concorrência controlada"),
+    65: (PRONTA, "tests/test_flow_control.py", "trava por guild"),
+    66: (PRONTA, "tests/test_security.py", "rate limit por servidor"),
+    67: (PRONTA, "tests/test_router.py", "cache expira e é invalidado por mutação"),
+    69: (PRONTA, "tests/test_audit.py", "segredo mascarado; parâmetros sensíveis não são auditados"),
+    70: (PRONTA, "tests/test_audit.py", "registro de auditoria tem os campos exigidos"),
+    74: (PRONTA, "tests/test_errors.py", "erro de permissão e erro da API viram mensagem útil"),
+    94: (PRONTA, "tests/test_audit.py", "segredo mascarado antes do handler de log"),
+    148: (PRONTA, "tests/test_flow_control.py", "backpressure e fila"),
+    151: (PRONTA, "tests/test_security.py", "barreiras de schema, auth, policy e contexto"),
+    155: (PRONTA, "tests/test_batch.py", "lote respeita a cota e reporta falhas"),
+    156: (PRONTA, "tests/test_progresso.py", "progresso informado"),
+    176: (PRONTA, "tests/test_security.py", "outra guild, permissão proibida, membro, injection — todos falham"),
+    177: (PRONTA, "tests/test_batch.py", "confirmação vencida não executa"),
+    178: (PRONTA, "tests/test_tools_basic.py", "não cria duas categorias"),
+    180: (PRONTA, "tests/test_batch.py", "falha parcial: estado, logs e resposta"),
+    21: (PRONTA, "tests/test_dependencias.py", "ordenação por dependência de execução"),
+    25: (PRONTA, "tests/test_autofix.py", "auto-correção antes de falhar"),
+    26: (PRONTA, "tests/test_design_system.py", "composição domínio x porte x público x estilo"),
     27: (PRONTA, "tests/test_design_system.py", "domínios diferentes dão estruturas diferentes"),
-    32: (PRONTA, "src/atlas/catalogo.py", "padrões marcados NÃO VERIFICADO, sem fonte inventada"),
-    33: (PRONTA, "src/atlas/catalogo.py", "confiança por padrão"),
-    35: (PRONTA, "src/atlas/design_system.py", "13 estilos visuais"),
-    36: (PRONTA, "src/atlas/design_system.py", "nomenclatura uniforme, sem misturar"),
-    37: (PRONTA, "src/atlas/design_system.py", "áreas conceituais com propósito"),
-    38: (PRONTA, "src/atlas/design_system.py", "todo canal tem propósito declarado"),
-    40: (PRONTA, "src/atlas/design_system.py", "funcional x identidade separados"),
-    41: (PRONTA, "src/atlas/design_system.py", "hierarquia cresce com o porte"),
-    42: (PRONTA, "src/atlas/design_system.py", "nenhum funcional nasce com administrator"),
-    43: (PRONTA, "src/atlas/design_system.py", "jornada de onboarding por domínio"),
-    44: (PRONTA, "src/atlas/design_system.py", "porte corta a arquitetura"),
-    73: (PRONTA, "src/atlas/botoes.py", "as sete barreiras do clique"),
+    32: (PARCIAL, "src/atlas/catalogo.py", "estrutura existe; a FONTE da spec é 'referências pesquisadas' e não houve pesquisa - padrões estão NÃO VERIFICADO"),
+    33: (PRONTA, "tests/test_catalogo.py", "armazena princípios, não templates; cresce por feedback"),
+    35: (PRONTA, "tests/test_design_system.py", "13 estilos visuais"),
+    36: (PRONTA, "tests/test_design_system.py", "nomenclatura uniforme, sem misturar"),
+    37: (PRONTA, "tests/test_design_system.py", "áreas conceituais com propósito"),
+    38: (PRONTA, "tests/test_design_system.py", "todo canal tem propósito declarado"),
+    40: (PRONTA, "tests/test_design_system.py", "funcional x identidade separados"),
+    41: (PRONTA, "tests/test_design_system.py", "hierarquia cresce com o porte"),
+    42: (PRONTA, "tests/test_design_system.py", "nenhum funcional nasce com administrator"),
+    43: (PRONTA, "tests/test_design_system.py", "jornada de onboarding por domínio"),
+    47: (PRONTA, "tests/test_design_check.py", "QA interno: categoria vazia, canal duplicado, cargo com admin, canal órfão"),
+    44: (PRONTA, "tests/test_design_system.py", "porte corta a arquitetura"),
+    73: (PRONTA, "tests/test_botoes.py", "as sete barreiras do clique"),
     78: (PRONTA, "tests/test_design_system.py", "tema sozinho não muda a estrutura"),
     79: (PRONTA, "tests/test_design_system.py", "público muda a estrutura"),
     86: (PRONTA, "1991c78", "backup lógico"),
     87: (PARCIAL, "1991c78", "rollback só inverte criações"),
-    88: (PRONTA, "src/atlas/versionamento.py", "JSONL por guild"),
+    88: (PRONTA, "tests/test_snapshot.py", "versionamento JSONL por guild (Fase 13 `9797e35`)"),
     89: (PRONTA, "3cadac1", "task system com estados"),
     90: (PRONTA, "76ae5c1", "cancelamento de tarefa"),
-    93: (PRONTA, "src/atlas/recuperacao.py", "classifica pós-restart, não executa"),
-    107: (PRONTA, "src/atlas/ai/classificacao.py", "classe da tarefa influencia a rota"),
-    113: (PRONTA, "src/atlas/estados.py", "estados do agente"),
-    115: (PRONTA, "src/atlas/ai/classificacao.py", "prioridade de rota"),
-    119: (PRONTA, "src/atlas/catalogo.py", "filtro por confiança mínima"),
+    93: (PRONTA, "tests/test_recuperacao.py", "classifica pós-restart, não executa"),
+    107: (PRONTA, "tests/test_classificacao.py", "classe da tarefa influencia a rota"),
+    113: (PRONTA, "tests/test_estados.py", "estados do agente"),
+    115: (PRONTA, "tests/test_classificacao.py", "prioridade de rota"),
+    119: (PRONTA, "tests/test_catalogo.py", "filtro por confiança mínima"),
     130: (PARCIAL, "src/atlas/design.py", "proposta concreta entra no prompt"),
-    135: (PRONTA, "src/atlas/design_system.py", "briefing antes de qualquer canal"),
-    136: (PRONTA, "src/atlas/design_system.py", "7 critérios com pontos e motivo"),
-    137: (PRONTA, "src/atlas/design_system.py", "precisa_refazer, limiar 8.0"),
-    138: (PRONTA, "src/atlas/design_system.py", "domínio x porte x público x estilo"),
-    140: (PRONTA, "src/atlas/catalogo.py", "feedback por guild, promover exige fonte"),
-    149: (PRONTA, "src/atlas/flow_control.py", "backpressure"),
-    150: (PRONTA, "src/atlas/flow_control.py", "cota por guild em janela"),
+    135: (PRONTA, "tests/test_design_system.py", "briefing antes de qualquer canal"),
+    136: (PRONTA, "tests/test_design_system.py", "7 critérios com pontos e motivo"),
+    137: (PRONTA, "tests/test_design_system.py", "precisa_refazer, limiar 8.0"),
+    138: (PARCIAL, "src/atlas/agent.py", "_qa_pos_execucao existe e a divergência é testada em test_autofix, mas falta teste dedicado do laço estado-real-vs-design"),
+    140: (PRONTA, "tests/test_catalogo.py", "feedback por guild, promover exige fonte"),
+    149: (PRONTA, "tests/test_flow_control.py", "backpressure"),
+    150: (PRONTA, "tests/test_flow_control.py", "cota por guild em janela"),
     156: (PRONTA, "76ae5c1", "progresso parcial"),
     158: (PRONTA, "76ae5c1", "cancelamento cooperativo"),
     169: (PRONTA, "tests/test_design_system.py", "compara forma pelo propósito, nunca pelo nome"),
@@ -93,7 +133,6 @@ _FORA: dict[int, str] = {
     29: "pesquisa na web",
     30: "pesquisa na web",
     31: "pesquisa na web",
-    33: "pesquisa na web (o catálogo existe, os padrões pesquisados não)",
     75: "pesquisa na web",
     116: "verificada como satisfeita por ausência: nada atrasa pedido simples",
 }
@@ -131,10 +170,24 @@ def parsear_secoes(texto: str) -> dict[int, str]:
         for m in p.finditer(texto):
             n = int(m.group(1))
             titulo = (m.group(2) or "").strip()
+            if not _eh_titulo_de_secao(titulo):
+                continue
             # Primeiro que casar vence; títulos repetidos não sobrescrevem um bom.
             if n not in out or (not out[n] and titulo):
                 out[n] = titulo
     return out
+
+
+def _eh_titulo_de_secao(titulo: str) -> bool:
+    """Cabeçalho de seção é CAIXA ALTA. Isso exclui item de lista numerada.
+
+    Caso real que motivou: a seção 54 tem "2. OAuth legítimo;" na lista dela.
+    Sem este filtro o parser inventava uma seção 2 chamada "OAuth legítimo" -
+    exatamente o tipo de dado inventado que este script existe para impedir.
+    """
+    if not titulo or not any(ch.isalpha() for ch in titulo):
+        return False
+    return titulo.upper() == titulo
 
 
 def main() -> int:
@@ -157,6 +210,20 @@ def main() -> int:
     for n in sorted(set(_EVIDENCIAS) | set(_FORA)):
         if n not in secoes:
             erros.append(f"seção {n} tem status mas não existe em docs/SPEC.md")
+
+    # Regra 5 (spec 160): PRONTA exige teste. Apontar para src/ prova que o
+    # código existe, não que ele foi testado e validado - e "o código foi
+    # escrito" é exatamente o que a spec 160 manda NÃO considerar conclusão.
+    for n, (status, evid, _obs) in sorted(_EVIDENCIAS.items()):
+        if status != PRONTA:
+            continue
+        if re.fullmatch(r"[0-9a-f]{7,40}", evid):
+            continue  # commit: o histórico é a evidência
+        if not evid.startswith("tests/"):
+            erros.append(
+                f"seção {n}: PRONTA exige evidência em tests/ ou commit, "
+                f"recebeu {evid} (spec 160)"
+            )
 
     # Regra 2: a evidência tem que existir.
     for n, (status, evid, _obs) in sorted(_EVIDENCIAS.items()):

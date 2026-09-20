@@ -16,7 +16,9 @@ _spec.loader.exec_module(mod)
 def _spec_de_exemplo(tmp_path: Path) -> Path:
     """Uma spec pequena com todas as seções citadas em _EVIDENCIAS/_FORA."""
     nums = sorted(set(mod._EVIDENCIAS) | set(mod._FORA))
-    corpo = "\n\n".join(f"{n}. Requisito número {n}" for n in nums)
+    # Título em CAIXA ALTA: é assim que a spec real marca cabeçalho de seção,
+    # e o parser exige isso para não confundir com item de lista numerada.
+    corpo = "\n\n".join(f"{n}. REQUISITO NUMERO {n}" for n in nums)
     p = tmp_path / "SPEC.md"
     p.write_text("# MASTER SPECIFICATION\n\n" + corpo + "\n", encoding="utf-8")
     return p
@@ -32,7 +34,7 @@ def _apontar(tmp_path, monkeypatch):
 def test_parser_pega_secao_numerada(tmp_path, monkeypatch):
     _apontar(tmp_path, monkeypatch)
     secoes = mod.parsear_secoes(mod.SPEC.read_text(encoding="utf-8"))
-    assert 12 in secoes and secoes[12] == "Requisito número 12"
+    assert 12 in secoes and secoes[12] == "REQUISITO NUMERO 12"
     assert len(secoes) == len(set(mod._EVIDENCIAS) | set(mod._FORA))
 
 
@@ -74,7 +76,7 @@ def test_commit_real_passa(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "_FORA", {})
     monkeypatch.setattr(mod.sys, "argv", ["spec_ledger.py"])
     assert mod.main() == 0
-    assert "| 12 | Requisito número 12 | PRONTA | `46b867f` | dry run |" in \
+    assert "| 12 | REQUISITO NUMERO 12 | PRONTA | `46b867f` | dry run |" in \
         (tmp_path / "SPEC-LEDGER.md").read_text(encoding="utf-8")
 
 
@@ -100,3 +102,35 @@ def test_sem_spec_avisa_em_vez_de_chutar(tmp_path, monkeypatch):
     monkeypatch.setattr(mod, "SPEC", tmp_path / "nao_tem.md")
     monkeypatch.setattr(mod.sys, "argv", ["spec_ledger.py"])
     assert mod.main() == 2
+
+
+def test_item_de_lista_numerada_nao_vira_secao(tmp_path, monkeypatch):
+    """Caso real da spec: a seção 54 tem '2. OAuth legítimo;' na lista.
+    Sem o filtro de caixa alta o parser inventava uma seção 2 com esse título."""
+    alvo = _apontar(tmp_path, monkeypatch)
+    mod.SPEC.write_text(
+        "54. NO-KEY / FREE-FIRST\n\nPriorizar:\n\n1. acesso sem chave;\n"
+        "2. OAuth legítimo;\n3. free tier;\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(mod, "_EVIDENCIAS", {})
+    monkeypatch.setattr(mod, "_FORA", {})
+    monkeypatch.setattr(mod.sys, "argv", ["spec_ledger.py"])
+    assert mod.main() == 0
+    secoes = mod.parsear_secoes(mod.SPEC.read_text(encoding="utf-8"))
+    assert list(secoes) == [54], secoes
+    assert "OAuth" not in alvo.read_text(encoding="utf-8")
+
+
+def test_spec_real_tem_188_secoes():
+    """Contra docs/SPEC.md de verdade: 0 a 187, sem buraco."""
+    spec = _RAIZ / "docs" / "SPEC.md"
+    if not spec.exists():
+        import pytest
+        pytest.skip("docs/SPEC.md ainda não foi salvo")
+    secoes = mod.parsear_secoes(spec.read_text(encoding="utf-8"))
+    assert len(secoes) == 188, len(secoes)
+    faltando = [n for n in range(188) if n not in secoes]
+    assert not faltando, f"seções ausentes: {faltando}"
+    assert secoes[0].startswith("MISSÃO")
+    assert secoes[187].startswith("PRIMEIRA AÇÃO")
