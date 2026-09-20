@@ -1,6 +1,8 @@
-"""Seções de provider que faltavam cobrir (spec 53, 54, 55, 106, 146, 147)."""
+"""Seções de provider que faltavam cobrir (spec 53, 54, 55, 106, 109, 146, 147)."""
 
 from __future__ import annotations
+
+from pathlib import Path
 
 from atlas.ai.providers import CATALOG, Access, catalog_summary
 
@@ -66,3 +68,60 @@ def test_pool_inteiro_e_gratuito_entao_nao_ha_eixo_de_custo():
     sem perceber que a escolha de rota nao considera preco."""
     for g in CATALOG:
         assert g.access in (Access.NO_AUTH, Access.MANUAL_REQUIRED), g.id
+
+
+# ------------------------------------------------- spec 109: saida estruturada
+def test_satisfies_rejeita_quando_falta_structured_output():
+    from atlas.ai.providers import Capabilities
+
+    tem_so_tools = Capabilities(tool_calling=True, structured_output=False)
+    precisa = Capabilities(structured_output=True)
+    assert tem_so_tools.satisfies(precisa) is False
+
+
+def test_satisfies_aceita_quando_a_rota_oferece():
+    from atlas.ai.providers import Capabilities
+
+    tem = Capabilities(tool_calling=True, structured_output=True)
+    assert tem.satisfies(Capabilities(structured_output=True)) is True
+
+
+def test_satisfies_rejeita_quando_falta_tool_calling():
+    from atlas.ai.providers import Capabilities
+
+    sem_tools = Capabilities(tool_calling=False)
+    assert sem_tools.satisfies(Capabilities(tool_calling=True)) is False
+
+
+def test_satisfies_rejeita_quando_falta_vision():
+    from atlas.ai.providers import Capabilities
+
+    sem_visao = Capabilities(tool_calling=True, vision=False)
+    assert sem_visao.satisfies(Capabilities(vision=True)) is False
+
+
+def test_satisfies_aceita_pedido_vazio():
+    """Nenhuma capacidade exigida -> qualquer rota serve."""
+    from atlas.ai.providers import Capabilities
+
+    assert Capabilities().satisfies(Capabilities()) is True
+
+
+def test_classificacao_nao_exige_structured_output():
+    """Nenhuma rota do pool gratuito gratuito declara a capacidade. Exigir aqui
+    faria a classificacao cair sempre - por isso ela degrada para tool calling,
+    que e testado. Este teste trava a decisao: se alguem passar a exigir, quebra.
+    """
+    from atlas.ai import classificacao
+
+    fonte = Path(classificacao.__file__).read_text(encoding="utf-8")
+    assert "structured_output nao e exigido aqui de proposito" in fonte
+
+
+def test_nenhuma_rota_do_pool_default_declara_structured_output():
+    """Documenta a realidade medida, nao uma vontade. Se um dia uma rota passar
+    a declarar, este teste avisa para a gente ligar o caminho JSON de verdade."""
+    from atlas.ai.providers import all_routes
+
+    com_saida = [r for r in all_routes() if r.caps.structured_output]
+    assert com_saida == [], f"pool mudou, ligar o caminho JSON: {com_saida}"
