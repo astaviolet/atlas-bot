@@ -138,7 +138,7 @@ Seções na spec: **188**
 | 127 | PLUGIN-STYLE TOOLS | PRONTA | `tests/test_policy.py` | tools modulares: channels.py, roles.py, server.py, read.py — registry recusa ferramenta proibida |
 | 128 | NÃO CRIAR COMPLEXIDADE SEM NECESSIDADE | PROCESSO | `docs/AUDITORIA.md` | cada camada tem propósito registrado |
 | 129 | PRINCÍPIO DE SIMPLICIDADE | PROCESSO | `README.md` | complexo por dentro, simples para o usuário |
-| 130 | EXPERIÊNCIA DO USUÁRIO | PARCIAL | `src/atlas/design.py` | proposta concreta entra no prompt |
+| 130 | EXPERIÊNCIA DO USUÁRIO | PRONTA | `tests/test_perguntas.py` | pergunta só o que não dá para inferir (sobra de reforma); tema/porte/estilo são inferidos e reversíveis |
 | 131 | INTERPRETAÇÃO DE PEDIDOS CURTOS | PRONTA | `tests/test_reforma.py` | "arruma", "organiza", "refaz" viram auditoria + plano de reforma; alvo pontual não |
 | 132 | NÃO ASSUMIR DEMAIS | PRONTA | `tests/test_batch.py` | exclusão múltipla exige confirmação; inferência reversível pode, destrutiva não |
 | 133 | EXPLICAÇÃO DE AÇÕES | PRONTA | `tests/test_embeds.py` | resumo do que foi feito e do que não pôde; sem despejo de log técnico |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **135**
-- PARCIAL: **8**
+- PRONTA: **136**
+- PARCIAL: **7**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**

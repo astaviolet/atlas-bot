@@ -222,7 +222,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     113: (PRONTA, "tests/test_estados.py", "estados do agente"),
     115: (PRONTA, "tests/test_classificacao.py", "prioridade de rota"),
     119: (PRONTA, "tests/test_catalogo.py", "filtro por confiança mínima"),
-    130: (PARCIAL, "src/atlas/design.py", "proposta concreta entra no prompt"),
+    130: (PRONTA, "tests/test_perguntas.py", "pergunta só o que não dá para inferir (sobra de reforma); tema/porte/estilo são inferidos e reversíveis"),
     135: (PRONTA, "tests/test_design_system.py", "briefing antes de qualquer canal"),
     136: (PRONTA, "tests/test_design_system.py", "7 critérios com pontos e motivo"),
     137: (PRONTA, "tests/test_design_system.py", "precisa_refazer, limiar 8.0"),

@@ -279,4 +279,16 @@ def proposta_de_reforma(texto: str, snapshot: Any, n_membros: int | None = None)
             "Canais que parecem sobra — NÃO exclua sem o usuário confirmar: "
             + ", ".join(reforma.suspeitas[:12])
         )
+
+    # Spec 130: pergunta objetiva quando falta detalhe que NAO da para inferir.
+    # Sobrar canal e o unico caso daqui: excluir destroi historico e nao ha
+    # rollback para conteudo. Tema, porte e estilo sao inferiveis e reversiveis,
+    # entao nao viram pergunta.
+    from .perguntas import formatar_perguntas, perguntas_necessarias
+
+    perguntas = formatar_perguntas(perguntas_necessarias(suspeitas=reforma.suspeitas))
+    if perguntas:
+        linhas.append("")
+        linhas.append("PERGUNTE AO USUÁRIO ANTES DE EXECUTAR:")
+        linhas.append(perguntas)
     return "\n".join(linhas)
