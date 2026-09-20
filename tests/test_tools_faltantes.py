@@ -165,3 +165,59 @@ def test_edit_category_inexistente_erro_controlado(harness):
     r = outcome.results[0]
     assert r.ok is False
     assert r.user_message
+
+
+# --------------------------------------- canal de controle nao se apaga (bug real)
+def test_nao_apaga_o_canal_de_onde_veio_o_pedido(harness):
+    """BUG REAL, medido: o usuario pediu "remova todos os canais e deixe apenas
+    esse" e o bot apagou `atlas-config` - o canal onde ele recebe comando. Ficou
+    inutilizavel, sem ter para onde responder. O audit log do Discord confirmou
+    user_id = o proprio bot.
+    """
+    from conftest import IDS
+
+    alvo = IDS["ch_bate_papo"]
+    h = harness([turn(("delete_channel", {"channel_id": str(alvo)})), final("Apaguei.")])
+    # o harness nao define source_channel_id (fica None); no bot real vem de
+    # message.channel.id, ou seja, do contexto real do Discord
+    h.ctx.source_channel_id = alvo
+    outcome = h.ask("apaga esse canal")
+
+    r = outcome.results[0]
+    assert r.ok is False, "apagou o canal de onde veio o pedido"
+    assert alvo in h.gateway.channels, "o canal sumiu"
+    assert "Nao apago" in (r.user_message or "")
+
+
+def test_nao_apaga_canal_marcado_como_controle_mesmo_de_outro_canal(harness):
+    """A protecao nao pode depender de o pedido vir do proprio canal: o modelo
+    pode mirar o canal de controle a partir de qualquer lugar."""
+    from atlas.models import Channel, ChannelType
+
+    from conftest import IDS
+
+    h = harness([final("x")])
+    novo = Channel(id=999001, name="outro-lugar", type=ChannelType.GUILD_TEXT,
+                   topic="[atlas-control] canal de controle")
+    h.gateway.channels[999001] = novo
+
+    h2 = harness([turn(("delete_channel", {"channel_id": "999001"})), final("Apaguei.")])
+    h2.gateway.channels[999001] = novo
+    outcome = h2.ask("apaga o canal 999001")
+
+    r = outcome.results[0]
+    assert r.ok is False, "apagou canal marcado como controle"
+    assert 999001 in h2.gateway.channels
+
+
+def test_apagar_canal_comum_continua_funcionando(harness):
+    """A protecao nao pode virar bloqueio geral - senao a tool para de servir."""
+    from conftest import IDS
+
+    alvo = IDS["ch_anuncios_610000000000000000"]
+    h = harness([turn(("delete_channel", {"channel_id": str(alvo)})), final("Apaguei.")])
+    outcome = h.ask("apaga o canal de anuncios")
+
+    r = outcome.results[0]
+    assert r.ok is True, f"bloqueou canal comum: {r.error}"
+    assert alvo not in h.gateway.channels

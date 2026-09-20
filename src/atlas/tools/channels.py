@@ -195,6 +195,39 @@ def _verify_edit_channel(ctx: ToolContext, params: dict[str, Any], data: Any) ->
     return True
 
 
+def _proteger_canal_de_controle(ctx: ToolContext, cid: int, channel: Any) -> None:
+    """Nunca apagar o canal de controle.
+
+    Aconteceu de verdade: o usuario pediu "remova todos os canais e deixe apenas
+    esse" e o bot apagou `atlas-config` - o canal onde ele mesmo recebe comando.
+    Ficou inutilizavel, sem ter para onde responder.
+
+    Por que isto e codigo e nao prompt: "deixe apenas esse" e ambiguo para o
+    modelo (ele nao sabe qual e "esse"), e mesmo sabendo, um modelo gratuito nao
+    e barreira para uma acao que quebra o sistema. O bloqueio e absoluto e vale
+    mesmo se vier confirmacao do usuario - perder o canal de controle nao e
+    reversivel pelo proprio bot.
+    """
+    from ..bot import CONTROL_CHANNEL_NAME, CONTROL_TOPIC_MARK
+
+    motivo = None
+    if ctx.source_channel_id is not None and int(ctx.source_channel_id) == int(cid):
+        motivo = "e o canal de onde veio o pedido"
+    elif (channel.name or "").strip().lower() == CONTROL_CHANNEL_NAME:
+        motivo = "e o canal de controle"
+    elif CONTROL_TOPIC_MARK in (getattr(channel, "topic", None) or ""):
+        motivo = "esta marcado como canal de controle"
+
+    if motivo:
+        raise ToolError(
+            "canal de controle protegido",
+            user_message=(
+                f"Nao apago `{channel.name}`: {motivo}. Sem ele eu nao tenho como "
+                "receber comando nem responder. Apaga ele voce, se quiser mesmo."
+            ),
+        )
+
+
 def _delete_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     require_bot_permission(ctx.snapshot, Perm.MANAGE_CHANNELS, what="excluir canal")
     try:
@@ -204,6 +237,7 @@ def _delete_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     channel = ctx.snapshot.find_channel(cid)
     if channel is None:
         raise NotFound(f"canal {cid}", user_message="Esse canal ja nao existe.")
+    _proteger_canal_de_controle(ctx, cid, channel)
     if channel.is_category:
         raise ToolError("use delete_category", user_message="Esse item e uma categoria. Use delete_category.")
     ctx.gateway.delete_channel(cid)
