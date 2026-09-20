@@ -26,6 +26,19 @@ if [ -z "${GITHUB_TOKEN:-}" ]; then
   exit 1
 fi
 
+# O token do bot vem do .env, nao do ambiente - e nunca e impresso.
+if [ -z "${DISCORD_TOKEN:-}" ] && [ -f .env ]; then
+  DISCORD_TOKEN="$(grep '^DISCORD_TOKEN=' .env | head -1 | cut -d= -f2-)"
+  export DISCORD_TOKEN
+fi
+if [ -z "${DISCORD_TOKEN:-}" ]; then
+  echo "DISCORD_TOKEN vazio no .env - nada a gravar como secret."
+  exit 1
+fi
+
+# cifra com o python do venv quando existe (tem pynacl); senao o do sistema
+PYBIN=".venv/bin/python"; [ -x "$PYBIN" ] || PYBIN="python3"
+
 auth() { curl -sS -H "Authorization: Bearer $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github+json" \
               -H "User-Agent: atlas-setup" "$@"; }
@@ -52,7 +65,7 @@ fi
 echo "== 3/5 gravando o secret DISCORD_TOKEN =="
 # O GitHub exige cifrar o valor com a chave publica do repo (libsodium sealed box).
 # Nada do token vai para o log.
-python3 - "$REPO" "$EU" <<'PY'
+"$PYBIN" - "$REPO" "$EU" <<'PY'
 import base64, json, os, sys, urllib.request
 repo, dono = sys.argv[1], sys.argv[2]
 tok = os.environ["GITHUB_TOKEN"]

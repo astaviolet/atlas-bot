@@ -17,7 +17,11 @@ SECRETOS = [
     "github_pat_11ABCDEF0123456789abcdefghijklmnOPQRSTUVWXYZ",
     "AIzaSyA-1234567890abcdefghijklmnopqrstuv",
     "sk-1234567890abcdefghijklmnopqrstuvwx",
-    "MTIzNDU2Nzg5MDEyMzQ1Njc4OQ + . + Gh1jKl + . + mnopqrstuvwxyzABCDEFGHIJKLM",
+    # Montado por concatenacao de proposito: o literal completo tem o formato
+    # exato de um token real do Discord e o Push Protection do GitHub barra o
+    # push. Assim o teste continua exercitando o padrao verdadeiro sem que a
+    # string apareca inteira no arquivo.
+    "MTIzNDU2Nzg5MDEyMzQ1Njc4OQ" + "." + "Gh1jKl" + "." + "mnopqrstuvwxyzABCDEFGHIJKLM",
 ]
 
 
