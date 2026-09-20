@@ -16,6 +16,7 @@ from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .config import Limits
 from .design_check import auditar_servidor
+from .estados import AgentState, RastreadorDeEstado
 from .snapshot_store import SnapshotStore
 from .task import TaskState, estado_da_tarefa
 from .embeds import EmbedBuilder, EmbedKind, EmbedSpec
@@ -77,6 +78,9 @@ class AgentOutcome:
     embeds: list[EmbedSpec] = field(default_factory=list)
     results: list[ActionResult] = field(default_factory=list)
     blocked: str | None = None
+    #: Estado final do agente (spec 113) e o caminho percorrido.
+    estado: str | None = None
+    caminho: list[str] = field(default_factory=list)
 
     @property
     def state(self) -> "TaskState":
@@ -98,6 +102,7 @@ class Agent:
         policy: Policy,
         limits: Limits,
     ) -> None:
+        self.estado = RastreadorDeEstado()
         self.ctx = ctx
         self.registry = registry
         self.executor = executor
@@ -107,9 +112,44 @@ class Agent:
         self.policy = policy
         self.limits = limits
 
+    def _com_estado(self, out: "AgentOutcome") -> "AgentOutcome":
+        """Carimba estado e caminho (spec 113). O caminho vai junto porque
+        COMPLETED sozinho nao diz se houve verificacao nem recuperacao.
+
+        O estado terminal e DERIVADO do resultado, nao declarado em cada return:
+        _handle_interno tem mais de dez saidas e declarar uma a uma ia deixar
+        alguma marcando COMPLETED sem ter executado - o sucesso falso da spec 185.
+        """
+        atual = self.estado.estado
+        if atual not in (AgentState.WAITING_CONFIRMATION, AgentState.FAILED):
+            if atual in (AgentState.UNDERSTANDING, AgentState.PLANNING,
+                         AgentState.EXECUTING, AgentState.VERIFYING,
+                         AgentState.RECOVERING):
+                tudo_falhou = bool(out.results) and not any(r.ok for r in out.results)
+                self.estado.ir_para(
+                    AgentState.FAILED if tudo_falhou else AgentState.COMPLETED
+                )
+        out.estado = self.estado.estado.value
+        out.caminho = [e for e, _ in self.estado.historico]
+        return out
+
     # ------------------------------------------------------------------ API
     async def handle(self, text: str, session: Session) -> AgentOutcome:
-        """Processa uma mensagem do usuario e devolve os embeds a enviar."""
+        """Processa uma mensagem do usuario e devolve os embeds a enviar.
+
+        Wrapper fino de proposito: _handle_interno tem mais de dez pontos de
+        retorno, e carimbar o estado em cada um ia escapar por algum. Aqui todo
+        caminho sai com estado (spec 113), inclusive o que levanta.
+        """
+        self.estado.reiniciar()
+        self.estado.ir_para(AgentState.UNDERSTANDING)
+        try:
+            return self._com_estado(await self._handle_interno(text, session))
+        except Exception:
+            self.estado.ir_para(AgentState.FAILED)
+            raise
+
+    async def _handle_interno(self, text: str, session: Session) -> AgentOutcome:
         screening = self.policy.screen_user_text(text)
         if screening["unicode_issues"]:
             log.warning("unicode suspeito na mensagem: %s", screening["unicode_issues"])
@@ -130,6 +170,7 @@ class Agent:
                 params={"hits": screening["injection_hits"]},
                 result="blocked",
             )
+            self.estado.ir_para(AgentState.FAILED)
             return AgentOutcome(
                 embeds=[injection_embed(self.builder, screening["injection_hits"])],
                 blocked="prompt_injection",
@@ -255,6 +296,7 @@ class Agent:
         mudancas = [r for r in results if r.ok and not is_read_only(r.action.tool)]
         if len(mudancas) < 3:
             return []
+        self.estado.ir_para(AgentState.VERIFYING)
         try:
             snapshot = self.ctx.refresh()
         except Exception:  # noqa: BLE001 - QA nunca derruba a resposta
@@ -315,6 +357,7 @@ class Agent:
                 turn_index=turn,
             )
 
+            self.estado.ir_para(AgentState.PLANNING)
             if not response.wants_tools:
                 if response.text:
                     session.add_assistant_text(response.text)
@@ -338,6 +381,7 @@ class Agent:
             # Antes este bloco recontava so as exclusoes e deixava passar
             # construcao grande (spec 12).
             if plan.needs_confirmation:
+                self.estado.ir_para(AgentState.WAITING_CONFIRMATION)
                 summary = plan.confirm_summary
                 session.pending = PendingConfirmation(
                     token=plan.token, calls=calls, summary=summary,
@@ -348,6 +392,7 @@ class Agent:
                     blocked="confirmation_required",
                 )
 
+            self.estado.ir_para(AgentState.EXECUTING)
             results = self.executor.execute(plan)
             all_results.extend(results)
             session.add_function_results([_result_payload(r) for r in results])
