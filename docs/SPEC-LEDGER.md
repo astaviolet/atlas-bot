@@ -57,7 +57,7 @@ Seções na spec: **188**
 | 46 | PRESERVAÇÃO | PRONTA | `tests/test_reforma.py` | nada é excluído: sobra vira suspeita para decisão humana; canal padrão é preservado |
 | 47 | SERVER DESIGN QA | PRONTA | `tests/test_design_check.py` | QA interno: categoria vazia, canal duplicado, cargo com admin, canal órfão |
 | 48 | MEMÓRIA | PRONTA | `tests/test_batch.py` | memória de contexto entre mensagens, separada por guild |
-| 49 | CONTEXTO | ABERTA | `—` |  |
+| 49 | CONTEXTO | PRONTA | `tests/test_wiring.py` | _trim() limita a janela; histórico vira mensagens OpenAI com ids casados e parte inútil é descartada |
 | 50 | PROMPT INJECTION | PRONTA | `tests/test_security.py` | prompt injection bloqueado; unicode invisível detectado |
 | 51 | AI ROUTER | PRONTA | `tests/test_router.py` | camada abstrata: base_url/modelo por gateway, sem provider fixo |
 | 52 | MULTI-PROVIDER | PRONTA | `tests/test_router.py` | catálogo com gateway/modelo/capacidade/limite; pool sobrevive a gateway inteiro caindo |
@@ -84,8 +84,8 @@ Seções na spec: **188**
 | 73 | BOTÕES | PRONTA | `tests/test_botoes.py` | as sete barreiras do clique |
 | 74 | ERROS | PRONTA | `tests/test_errors.py` | erro de permissão e erro da API viram mensagem útil |
 | 75 | PESQUISA CONTÍNUA | FORA DE ESCOPO | `decisão` | pesquisa na web |
-| 76 | APRENDIZADO | ABERTA | `—` |  |
-| 77 | LICENÇAS | ABERTA | `—` |  |
+| 76 | APRENDIZADO | PRONTA | `tests/test_catalogo.py` | padrão é classificado por confiança e revisado por feedback; nada entra como verdade automática |
+| 77 | LICENÇAS | FORA DE ESCOPO | `decisão` | nenhum código externo foi incorporado; dependências são discord.py e openai, ambas Apache/MIT |
 | 78 | SISTEMA DE TEMPLATES | PRONTA | `tests/test_design_system.py` | tema sozinho não muda a estrutura |
 | 79 | REGRAS DE DESIGN | PRONTA | `tests/test_design_system.py` | público muda a estrutura |
 | 80 | FORTNITE | PRONTA | `tests/test_design_final.py` | Fortnite competitivo tem LFG e recrutamento; casual não vira esports |
@@ -112,14 +112,14 @@ Seções na spec: **188**
 | 101 | TESTES DE CONCORRÊNCIA | PRONTA | `tests/test_router.py` | muitos usuários, várias guilds, provider falhando, rate limit |
 | 102 | TESTES DE FALHA | PRONTA | `tests/test_errors.py` | provider offline, Discord indisponível, tool error, timeout, sucesso parcial, restart |
 | 103 | LOAD TESTING | PRONTA | `tests/test_flow_control.py` | carga com simulação: cota, backpressure, teto de guilds — sem bombardear API real |
-| 104 | PERFORMANCE | ABERTA | `—` |  |
-| 105 | CUSTO | ABERTA | `—` |  |
+| 104 | PERFORMANCE | PRONTA | `tests/test_router.py` | cache por guild com TTL e invalidação por mutação; leitura não invalida |
+| 105 | CUSTO | PRONTA | `tests/test_providers_spec.py` | pool inteiro gratuito; cache evita chamada redundante |
 | 106 | PROVIDER COST-AWARE ROUTING | PRONTA | `tests/test_providers_spec.py` | pool inteiro gratuito e anônimo — não há eixo de custo; teste impede entrar provedor pago sem notar |
 | 107 | MODEL SELECTION | PRONTA | `tests/test_classificacao.py` | classe da tarefa influencia a rota |
 | 108 | TOOL-CALLING | PRONTA | `tests/test_router.py` | pedido com tools exige rota com tool calling; sem tools usa rota sem |
-| 109 | STRUCTURED OUTPUT | ABERTA | `—` |  |
-| 110 | STREAMING | ABERTA | `—` |  |
-| 111 | CONVERSAÇÃO NATURAL | ABERTA | `—` |  |
+| 109 | STRUCTURED OUTPUT | PARCIAL | `src/atlas/ai/providers.py` | nenhuma rota do pool gratuito declara structured_output; a saída estruturada vem de tool calling, que é testado |
+| 110 | STREAMING | FORA DE ESCOPO | `decisão` | streaming deliberadamente ausente: a spec 110 diz para não usar quando prejudicar consistência, e a resposta é uma mensagem só |
+| 111 | CONVERSAÇÃO NATURAL | PRONTA | `tests/test_embeds.py` | STYLE no prompt + limpar() em código: tira tabela, cabeçalho, markdown pesado e caractere exótico |
 | 112 | NÃO EXPOR RACIOCÍNIO INTERNO | PRONTA | `tests/test_antivazamento.py` | filtro na saída derivado do prompt real; pega caixa/quebra diferente e não censura resposta legítima |
 | 113 | ESTADO DO AGENTE | PRONTA | `tests/test_estados.py` | estados do agente |
 | 114 | CANCELAMENTO E CONFLITOS | PRONTA | `tests/test_wiring.py` | guild travado devolve guild_busy em vez de misturar planos; trava liberada mesmo com exceção |
@@ -140,9 +140,9 @@ Seções na spec: **188**
 | 129 | PRINCÍPIO DE SIMPLICIDADE | PROCESSO | `README.md` | complexo por dentro, simples para o usuário |
 | 130 | EXPERIÊNCIA DO USUÁRIO | PARCIAL | `src/atlas/design.py` | proposta concreta entra no prompt |
 | 131 | INTERPRETAÇÃO DE PEDIDOS CURTOS | PRONTA | `tests/test_reforma.py` | "arruma", "organiza", "refaz" viram auditoria + plano de reforma; alvo pontual não |
-| 132 | NÃO ASSUMIR DEMAIS | ABERTA | `—` |  |
-| 133 | EXPLICAÇÃO DE AÇÕES | ABERTA | `—` |  |
-| 134 | LOGS TÉCNICOS | ABERTA | `—` |  |
+| 132 | NÃO ASSUMIR DEMAIS | PRONTA | `tests/test_batch.py` | exclusão múltipla exige confirmação; inferência reversível pode, destrutiva não |
+| 133 | EXPLICAÇÃO DE AÇÕES | PRONTA | `tests/test_embeds.py` | resumo do que foi feito e do que não pôde; sem despejo de log técnico |
+| 134 | LOGS TÉCNICOS | PRONTA | `tests/test_observability.py` | log completo fica no painel; o usuário recebe resumo |
 | 135 | SISTEMA DE DESIGN ADAPTATIVO | PRONTA | `tests/test_design_system.py` | briefing antes de qualquer canal |
 | 136 | DESIGN SCORE INTERNO | PRONTA | `tests/test_design_system.py` | 7 critérios com pontos e motivo |
 | 137 | REVISÃO ANTES DE EXECUTAR | PRONTA | `tests/test_design_system.py` | precisa_refazer, limiar 8.0 |
@@ -190,7 +190,7 @@ Seções na spec: **188**
 | 179 | TESTE DE RESTART | PRONTA | `tests/test_recuperacao.py` | tarefa interrompida de verdade é detectada; nada é reexecutado às cegas |
 | 180 | TESTE DE PARTIAL FAILURE | PRONTA | `tests/test_batch.py` | falha parcial: estado, logs e resposta |
 | 181 | DOCUMENTAÇÃO FINAL | PROCESSO | `README.md` | documentação final |
-| 182 | RESULTADO FINAL ESPERADO | ABERTA | `—` |  |
+| 182 | RESULTADO FINAL ESPERADO | PRONTA | `tests/test_wiring.py` | pedido → plano → tools → verificação → resposta, de ponta a ponta |
 | 183 | REGRA FINAL DE INTELIGÊNCIA | PROCESSO | `README.md` | princípios fundamentais registrados |
 | 184 | REGRA FINAL DE PESQUISA | FORA DE ESCOPO | `decisão` | regra final de pesquisa: depende de acesso legítimo a busca, que não existe neste projeto |
 | 185 | REGRA FINAL DE IMPLEMENTAÇÃO | PROCESSO | `docs/AUDITORIA.md` | sem placeholder, mock escondido, sucesso falso |
@@ -199,10 +199,10 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **126**
-- PARCIAL: **7**
-- ABERTA: **12**
-- FORA DE ESCOPO: **12**
+- PRONTA: **135**
+- PARCIAL: **8**
+- ABERTA: **0**
+- FORA DE ESCOPO: **14**
 - PROCESSO: **31**
 - Total: **188**
 

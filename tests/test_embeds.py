@@ -451,7 +451,7 @@ def test_operacao_pequena_nao_recebe_contagem():
     from atlas.formatting import linha_de_contagem
 
     assert linha_de_contagem([_res("delete_channel")], []) == ""
-    assert linha_de_contagem([_res(f"create_channel") for _ in range(3)], []) == ""
+    assert linha_de_contagem([_res("create_channel") for _ in range(3)], []) == ""
 
 
 def test_operacao_grande_recebe_contagem():
