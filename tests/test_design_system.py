@@ -247,3 +247,56 @@ def test_inferir_estilo_pelo_pedido():
     assert inferir_estilo("quero cyberpunk") == EstiloVisual.CYBERPUNK
     assert inferir_estilo("competitivo") == EstiloVisual.COMPETITIVO
     assert inferir_estilo("tanto faz") == EstiloVisual.CLEAN
+
+
+# ---------------------------------------------- Fase 22: a proposta chega ao prompt
+def test_proposta_de_design_e_gerada_para_pedido_de_design():
+    from atlas.design import proposta_de_design
+
+    t = proposta_de_design("crie um servidor de Fortnite competitivo", n_membros=120)
+    assert t, "pedido de design tem que gerar proposta"
+    # conteudo concreto, nao principio: nome de categoria e canal de verdade
+    assert "anuncios" in t and "lfg" in t
+    assert "Cargos funcionais" in t and "Jornada de entrada" in t
+    # porte pequeno entra na conta
+    pequeno = proposta_de_design("crie um servidor de Fortnite", n_membros=20)
+    assert "porte: pequeno" in pequeno.replace("Porte considerado: ", "porte: ")
+
+
+def test_proposta_nao_aparece_em_pedido_comum():
+    """Spec 11/185: nao encher o prompt de projeto em pedido simples. Custaria
+    ~290 tokens a toa em cada volta do agente."""
+    from atlas.design import proposta_de_design
+
+    assert proposta_de_design("cria um canal chamado geral") == ""
+    assert proposta_de_design("") == ""
+
+
+def test_proposta_chega_ao_prompt_de_sistema():
+    """A ligacao de verdade: sem isto o sistema de design seria codigo morto."""
+    from atlas.config import Limits
+    from atlas.policy import ActionBudget, Policy
+    from atlas.prompts import build_system_prompt
+    from atlas.testing.fake_gateway import FakeGateway
+    from atlas.tools import build_registry
+    from atlas.tools.base import ToolContext
+
+    L = Limits()
+    gw = FakeGateway()
+    pol = Policy(
+        guild_id=gw.guild_id,
+        budget=ActionBudget(
+            max_actions=L.max_actions_per_plan,
+            max_creates=L.max_creates_per_plan,
+            max_deletes=L.max_deletes_per_plan,
+        ),
+        destructive_confirm_threshold=L.destructive_confirm_threshold,
+    )
+    ctx = ToolContext(guild_id=gw.guild_id, gateway=gw, policy=pol, limits=L,
+                      snapshot=gw.snapshot())
+    reg = build_registry()
+
+    com_pedido = build_system_prompt(ctx.snapshot, reg, pol, request="monta um servidor de xadrez")
+    sem_pedido = build_system_prompt(ctx.snapshot, reg, pol, request="cria um canal chamado geral")
+    assert "PROPOSTA DE ARQUITETURA" in com_pedido
+    assert "PROPOSTA DE ARQUITETURA" not in sem_pedido

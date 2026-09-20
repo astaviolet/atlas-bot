@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .design import doutrina_de_design
+from .design import doutrina_de_design, proposta_de_design
 from .models import GuildSnapshot
 from .policy import Policy
 from .tools.base import ToolRegistry
@@ -113,6 +113,11 @@ def build_system_prompt(
     # Doutrina de design entra SO em pedido de projetar servidor. Em "cite os
     # cargos" ela custaria ~800 tokens a toa em cada volta do agente.
     doutrina = doutrina_de_design(request)
+    # Proposta concreta (Fase 22). A doutrina diz como pensar e o modelo ignorou
+    # (medido na Fase 5); isto diz o que construir, com nome real.
+    proposta = proposta_de_design(request)
+    if proposta:
+        doutrina = f"{doutrina}\n\n{proposta}" if doutrina else proposta
 
     # Sem isto o modelo nao tem como saber onde a conversa acontece. Pede o id
     # de volta ("qual canal voce quer manter?") ou chuta um canal errado.

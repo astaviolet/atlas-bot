@@ -122,3 +122,63 @@ corrija antes de responder - nao compense design fraco com mais canais."""
 def doutrina_de_design(texto: str) -> str:
     """Devolve a doutrina se o pedido for de projeto; senao, string vazia."""
     return DOUTRINA if is_pedido_de_design(texto) else ""
+
+
+# ---------------------------------------------------------------------------
+# Fase 22: proposta concreta (spec 11, 26, 130, 135)
+# ---------------------------------------------------------------------------
+def proposta_de_design(texto: str, n_membros: int | None = None) -> str:
+    """Projeta a arquitetura e devolve como proposta concreta.
+
+    POR QUE ISTO E DIFERENTE DA DOUTRINA
+    ------------------------------------
+    A doutrina (acima) diz "como pensar". Medido na Fase 5: o modelo ignorou.
+    Isto aqui diz "o que construir", com nome de categoria, canal e cargo. E
+    gerado por composicao deterministica em `design_system`, entao e testavel -
+    e muito mais dificil de ignorar do que um paragrafo de principio.
+
+    Continua sendo PROPOSTA, nao execucao (spec 11: plano != execucao). O modelo
+    ainda emite as tool calls, e tudo passa pelas mesmas barreiras.
+    """
+    from .design_system import (
+        Briefing,
+        design_score,
+        inferir_dominio,
+        inferir_estilo,
+        inferir_porte,
+        projetar,
+    )
+
+    if not is_pedido_de_design(texto):
+        return ""
+
+    briefing = Briefing(
+        tema=texto,
+        dominio=inferir_dominio(texto),
+        porte=inferir_porte(n_membros),
+        estilo=inferir_estilo(texto),
+    )
+    arq = projetar(briefing)
+    nota = design_score(arq)
+
+    linhas = [
+        "PROPOSTA DE ARQUITETURA (gerada pelo sistema de design; use como base,",
+        "adaptando o vocabulario ao tema - nao copie para outro tipo de servidor):",
+        "",
+    ]
+    for cat in arq.categorias:
+        linhas.append(f"[{cat.nome}] {cat.proposito}")
+        for c in cat.canais:
+            vis = " (privado)" if c.privado else ""
+            linhas.append(f"  - {c.nome} [{c.tipo}]{vis}: {c.proposito}")
+    funcionais = [c.nome for c in arq.cargos if c.tipo == "funcional"]
+    identidade = [c.nome for c in arq.cargos if c.tipo == "identidade"]
+    linhas.append("")
+    linhas.append(f"Cargos funcionais (hierarquia): {', '.join(funcionais)}")
+    linhas.append(f"Cargos de identidade (cor/interesse, sem permissao): {', '.join(identidade)}")
+    linhas.append(f"Jornada de entrada: {' -> '.join(arq.onboarding)}")
+    linhas.append(
+        f"Porte considerado: {briefing.porte.value} | estilo: {briefing.estilo.value} "
+        f"| dominio: {briefing.dominio.value} | nota interna: {nota['geral']}/10"
+    )
+    return "\n".join(linhas)
