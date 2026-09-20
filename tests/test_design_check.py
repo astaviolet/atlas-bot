@@ -211,3 +211,107 @@ def test_falha_parcial_aparece_no_resultado(harness):
     assert out.state == TaskState.PARTIAL, out.state
     textos = " ".join(e.description or "" for e in out.embeds)
     assert "nao foi tudo" in textos, textos
+
+
+# ------------------------------------------------- spec 138: real vs planejado
+def _arq_de_teste():
+    from atlas.design_system import Briefing, Dominio, Porte, projetar
+
+    return projetar(Briefing(dominio=Dominio.GAMING_COMPETITIVO, porte=Porte.MEDIO))
+
+
+def test_conferir_aponta_area_que_faltou():
+    from atlas.design_check import conferir_contra_design
+    from atlas.models import Channel, ChannelType, GuildSnapshot
+
+    arq = _arq_de_teste()
+    # servidor com só uma das áreas
+    snap = GuildSnapshot(
+        id=1, name="S", owner_id=1, bot_role_id=9, bot_permissions=0,
+        channels=[Channel(id=1, name=arq.categorias[0].nome, type=ChannelType.GUILD_CATEGORY)],
+    )
+    faltas = conferir_contra_design(snap, arq)
+    assert faltas, "tinha que apontar o que falta"
+    assert any("não foi criada" in f for f in faltas)
+
+
+def test_conferir_aponta_canal_que_faltou():
+    from atlas.design_check import conferir_contra_design
+    from atlas.models import Channel, ChannelType, GuildSnapshot
+
+    arq = _arq_de_teste()
+    chans = []
+    for i, cat in enumerate(arq.categorias):
+        chans.append(Channel(id=100 + i, name=cat.nome, type=ChannelType.GUILD_CATEGORY))
+    snap = GuildSnapshot(id=1, name="S", owner_id=1, bot_role_id=9,
+                         bot_permissions=0, channels=chans)
+    faltas = conferir_contra_design(snap, arq)
+    assert any("não foi criado" in f for f in faltas)
+
+
+def test_conferir_nao_reclama_quando_tudo_foi_feito():
+    from atlas.design_check import conferir_contra_design
+    from atlas.models import Channel, ChannelType, GuildSnapshot
+
+    arq = _arq_de_teste()
+    chans, n = [], 100
+    for cat in arq.categorias:
+        n += 1
+        chans.append(Channel(id=n, name=cat.nome, type=ChannelType.GUILD_CATEGORY))
+        for c in cat.canais:
+            n += 1
+            chans.append(Channel(id=n, name=c.nome, type=ChannelType.GUILD_TEXT, parent_id=n - 1))
+    snap = GuildSnapshot(id=1, name="S", owner_id=1, bot_role_id=9,
+                         bot_permissions=0, channels=chans)
+    assert conferir_contra_design(snap, arq) == []
+
+
+def test_conferir_nao_aponta_excesso():
+    """Canal a mais pode ser do proprio servidor - a reforma preserva o que
+    existe (spec 46). Apontar excesso seria alarme falso em toda reforma."""
+    from atlas.design_check import conferir_contra_design
+    from atlas.models import Channel, ChannelType, GuildSnapshot
+
+    arq = _arq_de_teste()
+    chans, n = [], 100
+    for cat in arq.categorias:
+        n += 1
+        chans.append(Channel(id=n, name=cat.nome, type=ChannelType.GUILD_CATEGORY))
+        for c in cat.canais:
+            n += 1
+            chans.append(Channel(id=n, name=c.nome, type=ChannelType.GUILD_TEXT, parent_id=n - 1))
+    chans.append(Channel(id=999, name="canal-que-ja-existia", type=ChannelType.GUILD_TEXT))
+    snap = GuildSnapshot(id=1, name="S", owner_id=1, bot_role_id=9,
+                         bot_permissions=0, channels=chans)
+    assert conferir_contra_design(snap, arq) == []
+
+
+def test_conferir_sem_arquitetura_nao_estoura():
+    from atlas.design_check import conferir_contra_design
+    from atlas.models import GuildSnapshot
+
+    snap = GuildSnapshot(id=1, name="S", owner_id=1, bot_role_id=9, bot_permissions=0)
+    assert conferir_contra_design(snap, None) == []
+
+
+def test_conferir_ignora_caixa_e_separador():
+    """'「🏆」competitivo' tem que casar com 'competitivo', senao a verificacao
+    reclama de coisa que foi feita."""
+    from atlas.design_check import conferir_contra_design
+    from atlas.design_system import (
+        Briefing, Dominio, EstiloVisual, Porte, projetar,
+    )
+    from atlas.models import Channel, ChannelType, GuildSnapshot
+
+    arq = projetar(Briefing(dominio=Dominio.GAMING_COMPETITIVO, porte=Porte.PEQUENO,
+                            estilo=EstiloVisual.COMPETITIVO))
+    chans, n = [], 100
+    for cat in arq.categorias:
+        n += 1
+        chans.append(Channel(id=n, name=cat.nome.upper(), type=ChannelType.GUILD_CATEGORY))
+        for c in cat.canais:
+            n += 1
+            chans.append(Channel(id=n, name=c.nome, type=ChannelType.GUILD_TEXT, parent_id=n - 1))
+    snap = GuildSnapshot(id=1, name="S", owner_id=1, bot_role_id=9,
+                         bot_permissions=0, channels=chans)
+    assert conferir_contra_design(snap, arq) == []

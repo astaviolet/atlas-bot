@@ -143,3 +143,42 @@ def auditar_servidor(snapshot: GuildSnapshot) -> list[str]:
             problemas.append(f"existem {qt} categorias com o nome '{nome}'")
 
     return problemas
+
+
+def conferir_contra_design(snapshot: GuildSnapshot, arquitetura: Any) -> list[str]:
+    """Spec 138: o estado REAL corresponde ao design planejado?
+
+    Diferença para `auditar_servidor`: aquela acha defeito objetivo em qualquer
+    servidor (categoria vazia, canal órfão, duplicata). Esta compara com o que
+    foi PROJETADO — área que deveria existir e não existe, canal planejado que
+    não apareceu.
+
+    Por que as duas e não uma: um servidor pode estar sem defeito objetivo e
+    mesmo assim não ser o que foi pedido. "Não tem categoria vazia" não significa
+    "tem a área de competitivo que o pedido pedia".
+
+    Só reporta falta, nunca excesso. Canal a mais pode ser do próprio servidor
+    (a reforma preserva o que existe — spec 46), então apontar excesso aqui
+    geraria alarme falso em toda reforma.
+    """
+    if arquitetura is None:
+        return []
+
+    nomes_reais = {
+        _norm(c.name) for c in getattr(snapshot, "channels", []) or []
+    }
+    categorias_reais = {
+        _norm(c.name)
+        for c in getattr(snapshot, "channels", []) or []
+        if getattr(c, "is_category", False)
+    }
+
+    faltas: list[str] = []
+    for categoria in getattr(arquitetura, "categorias", []) or []:
+        if _norm(categoria.nome) not in categorias_reais:
+            faltas.append(f"a área '{categoria.nome}' não foi criada")
+            continue
+        for canal in getattr(categoria, "canais", []) or []:
+            if _norm(canal.nome) not in nomes_reais:
+                faltas.append(f"o canal '{canal.nome}' não foi criado")
+    return faltas

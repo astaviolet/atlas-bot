@@ -226,7 +226,7 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     135: (PRONTA, "tests/test_design_system.py", "briefing antes de qualquer canal"),
     136: (PRONTA, "tests/test_design_system.py", "7 critérios com pontos e motivo"),
     137: (PRONTA, "tests/test_design_system.py", "precisa_refazer, limiar 8.0"),
-    138: (PARCIAL, "src/atlas/agent.py", "_qa_pos_execucao existe e a divergência é testada em test_autofix, mas falta teste dedicado do laço estado-real-vs-design"),
+    138: (PRONTA, "tests/test_design_check.py", "conferir_contra_design compara estado real com o projetado; roda na conclusão normal, não só no limite de turnos"),
     140: (PRONTA, "tests/test_catalogo.py", "feedback por guild, promover exige fonte"),
     149: (PRONTA, "tests/test_flow_control.py", "backpressure"),
     150: (PRONTA, "tests/test_flow_control.py", "cota por guild em janela"),

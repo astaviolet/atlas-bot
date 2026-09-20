@@ -146,7 +146,7 @@ Seções na spec: **188**
 | 135 | SISTEMA DE DESIGN ADAPTATIVO | PRONTA | `tests/test_design_system.py` | briefing antes de qualquer canal |
 | 136 | DESIGN SCORE INTERNO | PRONTA | `tests/test_design_system.py` | 7 critérios com pontos e motivo |
 | 137 | REVISÃO ANTES DE EXECUTAR | PRONTA | `tests/test_design_system.py` | precisa_refazer, limiar 8.0 |
-| 138 | REVISÃO DEPOIS DE EXECUTAR | PARCIAL | `src/atlas/agent.py` | _qa_pos_execucao existe e a divergência é testada em test_autofix, mas falta teste dedicado do laço estado-real-vs-design |
+| 138 | REVISÃO DEPOIS DE EXECUTAR | PRONTA | `tests/test_design_check.py` | conferir_contra_design compara estado real com o projetado; roda na conclusão normal, não só no limite de turnos |
 | 139 | APRENDIZADO POR FEEDBACK | PRONTA | `tests/test_catalogo.py` | registrar_feedback por guild; promover exige fonte não vazia |
 | 140 | NÃO REPETIR ERROS | PRONTA | `tests/test_catalogo.py` | feedback por guild, promover exige fonte |
 | 141 | PESQUISA CONTÍNUA DE DESIGN | FORA DE ESCOPO | `decisão` | pesquisa contínua de design: fora de escopo (sem busca na web) |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **136**
-- PARCIAL: **7**
+- PRONTA: **137**
+- PARCIAL: **6**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**

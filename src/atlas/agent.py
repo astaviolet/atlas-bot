@@ -284,7 +284,9 @@ class Agent:
         return AgentOutcome(embeds=_cortar_por_prioridade(result_embeds(self.builder, results), MAX_EMBEDS_PER_TURN), results=results)
 
     # --------------------------------------------------------------------- QA
-    def _qa_pos_execucao(self, results: list[ActionResult]) -> list[EmbedSpec]:
+    def _qa_pos_execucao(
+        self, results: list[ActionResult], pedido: str = ""
+    ) -> list[EmbedSpec]:
         """Conferir o estado REAL depois de mexer (spec 24, 138).
 
         So roda quando algo mudou - ler o servidor nao precisa de QA. E so
@@ -304,6 +306,10 @@ class Agent:
             log.warning("QA pos-execucao nao conseguiu reler o servidor", exc_info=True)
             return []
         problemas = auditar_servidor(snapshot)
+        # Spec 138: alem do defeito objetivo, comparar com o que foi PROJETADO.
+        # Um servidor pode estar sem categoria vazia e mesmo assim nao ser o que
+        # o pedido pedia.
+        problemas = [*problemas, *_faltas_contra_o_design(snapshot, pedido)]
         if not problemas:
             return []
         log.info("QA pos-execucao achou %d problema(s): %s", len(problemas), problemas)
@@ -383,6 +389,10 @@ class Agent:
                     embeds.append(resposta)
                 if not embeds:
                     embeds = [self.builder.info("Atlas", "Nao encontrei nada para fazer nesse pedido.")]
+                # Spec 138 tambem na conclusao normal. Antes o QA so rodava no
+                # caminho de limite de turnos, ou seja: quando tudo dava certo
+                # ninguem conferia o resultado.
+                embeds.extend(self._qa_pos_execucao(all_results, text))
                 return AgentOutcome(embeds=_cortar_por_prioridade(embeds, MAX_EMBEDS_PER_TURN), results=all_results)
 
             calls = [{"id": c.id, "name": c.name, "args": c.args} for c in response.calls]
@@ -425,7 +435,7 @@ class Agent:
 
         log.warning("limite de %d turnos atingido", self.limits.max_turns)
         embeds = result_embeds(self.builder, all_results) if all_results else []
-        embeds.extend(self._qa_pos_execucao(all_results))
+        embeds.extend(self._qa_pos_execucao(all_results, text))
         embeds.append(
             self.builder.warning(
                 "Parei no meio",
@@ -509,3 +519,31 @@ def build_agent(
         policy=policy,
         limits=limits,
     )
+
+
+def _faltas_contra_o_design(snapshot: Any, pedido: str) -> list[str]:
+    """Projeta o design que o pedido implicava e compara com o estado real.
+
+    Devolve lista vazia quando o pedido não é de design — não faz sentido
+    comparar "cite os cargos" com uma arquitetura projetada.
+    """
+    from .design import is_pedido_de_design, is_pedido_de_reforma
+    from .design_check import conferir_contra_design
+    from .design_system import Briefing, inferir_dominio, inferir_estilo, inferir_porte, projetar
+
+    if not pedido:
+        return []
+    if not (is_pedido_de_design(pedido) or is_pedido_de_reforma(pedido)):
+        return []
+    try:
+        n_membros = getattr(getattr(snapshot, "guild", None), "member_count", None)
+        arquitetura = projetar(Briefing(
+            tema=pedido,
+            dominio=inferir_dominio(pedido),
+            porte=inferir_porte(n_membros),
+            estilo=inferir_estilo(pedido),
+        ))
+        return conferir_contra_design(snapshot, arquitetura)
+    except Exception:  # noqa: BLE001 - QA nunca derruba a resposta
+        log.warning("comparacao com o design projetado falhou", exc_info=True)
+        return []
