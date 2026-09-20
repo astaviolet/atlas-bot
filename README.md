@@ -47,7 +47,7 @@ cp .env.example .env      # preencha
 Outros modos:
 
 ```bash
-.venv/bin/python -m pytest -q                   # 347 testes
+.venv/bin/python -m pytest -q                   # 352 testes
 .venv/bin/python main.py --demo                 # agente contra servidor simulado
 ```
 
@@ -233,7 +233,7 @@ atlas-bot/
 │   ├── errors.py                 hierarquia de excecoes (AIError, PolicyViolation...)
 │   ├── demo.py                   modo demo sem credencial
 │   └── testing/fake_gateway.py   Discord em memoria com as mesmas restricoes
-└── tests/                        9 arquivos de teste + conftest, 347 testes
+└── tests/                        9 arquivos de teste + conftest, 352 testes
 ```
 
 ---
@@ -380,7 +380,7 @@ aviso, ajuda. Textos são cortados nos limites da API.
 ## Testes
 
 ```
-347 passed
+352 passed
 ```
 
 | Arquivo | Cobre |

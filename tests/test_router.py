@@ -19,6 +19,7 @@ from atlas.ai import (
     chave_pedido,
 )
 from atlas.ai.discovery import ProbeResult, ProbeStatus, probe_rota, reavaliar, resumo_probes
+from atlas.ai import build_ai_client
 from atlas.errors import AIError
 
 
@@ -286,21 +287,43 @@ def test_cache_expira():
 
 
 def test_agente_invalida_cache_depois_de_mutacao(harness):
-    """Ponta a ponta: mudou o servidor, cache velho nao serve mais."""
-    from atlas.ai import Router as _R
+    """Mudou o servidor, cache velho nao serve mais - e o agente e quem avisa."""
+    import asyncio
+
     from conftest import final, turn
 
     h = harness([turn(("create_role", {"name": "Novo"})), final("ok")])
-    roteador = _R([])  # catalog vazio: so usamos o cache dele
-    roteador.cache.put(h.gateway.guild_id, "qualquer", "guardado")
-    h.agent.model = h.model
-    h.agent.handle_invalidacao = None  # documenta que o gancho esta no agente
 
+    # Router de verdade como cliente do agente, mas com um cliente por gateway
+    # que responde o roteiro: assim o cache em jogo e o do Router.
+    roteador = Router([], backoff_seconds=0.0)
+    invalidados: list[int] = []
+    roteador.invalidar_guild = lambda gid: invalidados.append(gid)
+    h.agent.model = roteador
+    roteador.generate = lambda **kw: (
+        h.model.generate(**kw)
+    )
+
+    asyncio.run(h.agent.handle("cria um cargo Novo", h.session))
+    assert invalidados == [h.gateway.guild_id], \
+        "o agente tem que invalidar o cache do guild depois de mutacao"
+
+
+def test_so_leitura_nao_invalida_cache(harness):
+    """Consultar o servidor nao muda nada; descartar cache ai seria desperdicio."""
     import asyncio
-    from atlas.policy import is_read_only
 
-    outcome = asyncio.run(h.agent.handle("cria um cargo Novo", h.session))
-    assert any(not is_read_only(r.action.tool) for r in outcome.results)
+    from conftest import final, turn
+
+    h = harness([turn(("get_server_info", {})), final("ok")])
+    roteador = Router([], backoff_seconds=0.0)
+    invalidados: list[int] = []
+    roteador.invalidar_guild = lambda gid: invalidados.append(gid)
+    roteador.generate = lambda **kw: h.model.generate(**kw)
+    h.agent.model = roteador
+
+    asyncio.run(h.agent.handle("como esta o servidor?", h.session))
+    assert invalidados == [], "leitura nao pode invalidar cache"
 
 
 # ------------------------------------------------------------------ metricas
@@ -476,3 +499,64 @@ def test_pool_continua_funcionando_quando_um_gateway_cai_inteiro():
     turno = router.generate(system="s", history=[], tools=TOOLS)
     assert turno.wants_tools
     assert router.last_route.split("/")[0] in ("B", "C")
+
+
+# ------------------- lacunas que a mutacao revelou (regressao obrigatoria)
+def test_router_nao_escolhe_rota_em_cooldown():
+    """O circuit breaker so vale se o ROUTER respeitar, nao so o registro."""
+    agora = [0.0]
+    reg = HealthRegistry(failure_threshold=1, base_cooldown=60.0, clock=lambda: agora[0])
+    reg.record_failure("A/a1", reason="503")
+    assert reg.get("A/a1").state is Health.COOLDOWN
+
+    cat = [Gateway(id="A", base_url="https://a/v1", models=[
+        ModelRoute(gateway="A", model="a1", weight=1000),   # preferida, mas em cooldown
+        ModelRoute(gateway="A", model="a2", weight=1),
+    ])]
+    router, clientes = make_router({}, catalog=cat, health=reg, clock=lambda: agora[0])
+    router.generate(system="s", history=[], tools=TOOLS)
+
+    assert clientes["A"].chamadas == ["a2"], "a rota em cooldown nao podia ser chamada"
+    assert router.last_route == "A/a2"
+
+
+def test_router_pula_gateway_no_limite_mesmo_quando_ele_seria_o_preferido():
+    """Isola o rpm: sem o balde, o round robin sozinho escolheria a mesma rota."""
+    agora = [0.0]
+    cat = [Gateway(id="apertado", base_url="https://a/v1", rpm=1, models=[
+        ModelRoute(gateway="apertado", model="m1", weight=1000),
+    ])]
+    router, clientes = make_router({}, catalog=cat, clock=lambda: agora[0])
+
+    router.generate(system="s", history=[], tools=TOOLS)
+    assert clientes["apertado"].chamadas == ["m1"]
+
+    # balde vazio e relogio parado: nao ha outra rota, entao tem que recusar
+    # em vez de estourar o limite do provedor
+    with pytest.raises(AIError):
+        router.generate(
+            system="s",
+            history=[{"role": "user", "parts": [{"text": "outro pedido"}]}],
+            tools=TOOLS,
+        )
+    assert clientes["apertado"].chamadas == ["m1"], "nao pode ter chamado de novo"
+
+
+def test_prompt_do_probe_exige_a_ferramenta():
+    """Regressao: 'responda apenas ok' fazia o modelo obedecer e a rota boa
+    era descartada como 'sem tool calling' - falso negativo em 13 rotas."""
+    from atlas.ai.discovery import PROMPT_PROBE
+
+    baixo = PROMPT_PROBE.lower()
+    assert "ping" in baixo, "o probe precisa nomear a ferramenta"
+    assert "nao responda em texto" in baixo or "não responda em texto" in baixo
+
+
+def test_catalogo_nao_tem_gateway_vazio():
+    """Sem AI_* preenchido nao pode aparecer gateway 'configurado' sem rotas."""
+    from atlas.config import Settings
+
+    catalogo = build_ai_client(Settings(discord_token="t")).catalog
+    vazios = [g.id for g in catalogo if not g.models]
+    assert vazios == [], f"gateways sem rota no catalogo: {vazios}"
+    assert all(g.id != "configurado" for g in catalogo)
