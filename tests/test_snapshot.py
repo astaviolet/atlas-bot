@@ -130,3 +130,78 @@ def test_plano_pequeno_nao_salva_snapshot(harness, tmp_path):
     h.agent.executor.snapshots = SnapshotStore(tmp_path)
     h.ask("cria um canal")
     assert h.agent.executor.snapshots.ler(h.gateway.guild_id) is None
+
+
+# ------------------------------------------- Fase 13: versionamento (spec 88)
+def test_cada_salvamento_vira_uma_versao(tmp_path):
+    from atlas.models import GuildSnapshot
+
+    loja = SnapshotStore(tmp_path)
+    for i in range(3):
+        loja.salvar(7, GuildSnapshot(id=7, name=f"V{i}", owner_id=1,
+                                     bot_role_id=2, bot_permissions=0),
+                    autor="ek8a", resumo=f"mudanca {i}")
+
+    versoes = loja.listar_versoes(7)
+    assert [v["versao"] for v in versoes] == [1, 2, 3], "versao tem que subir sozinha"
+    assert versoes[0]["resumo"] == "mudanca 0"
+    assert versoes[2]["autor"] == "ek8a"
+    assert all(v["salvo_em"] > 0 for v in versoes)
+
+
+def test_da_para_ler_uma_versao_especifica(tmp_path):
+    from atlas.models import GuildSnapshot
+
+    loja = SnapshotStore(tmp_path)
+    for i in range(3):
+        loja.salvar(7, GuildSnapshot(id=7, name=f"V{i}", owner_id=1,
+                                     bot_role_id=2, bot_permissions=0))
+
+    v2 = loja.ler_versao(7, 2)
+    assert v2 is not None and v2["servidor"] == "V1"
+    assert loja.ler_versao(7, 99) is None, "versao que nao existe devolve None"
+
+
+def test_ultima_versao_e_a_mais_recente(tmp_path):
+    from atlas.models import GuildSnapshot
+
+    loja = SnapshotStore(tmp_path)
+    assert loja.ultima_versao(7) is None
+    loja.salvar(7, GuildSnapshot(id=7, name="A", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+    loja.salvar(7, GuildSnapshot(id=7, name="B", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+    assert loja.ultima_versao(7) == 2
+    assert loja.ler(7)["servidor"] == "B", "o arquivo 'ultimo estado' continua valendo"
+
+
+def test_historico_aguenta_linha_corrompida(tmp_path):
+    """Uma linha quebrada nao pode invalidar o historico inteiro."""
+    from atlas.models import GuildSnapshot
+
+    loja = SnapshotStore(tmp_path)
+    loja.salvar(7, GuildSnapshot(id=7, name="A", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+    hist = loja._historico(7)
+    hist.write_text(hist.read_text(encoding="utf-8") + "{isso nao e json\n",
+                    encoding="utf-8")
+    loja.salvar(7, GuildSnapshot(id=7, name="B", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+
+    versoes = loja.listar_versoes(7)
+    # a linha ruim some e a numeracao segue contigua (1 -> 2), porque
+    # proxima_versao() conta as versoes legiveis, nao as linhas do arquivo
+    assert [v["versao"] for v in versoes] == [1, 2], versoes
+
+
+def test_historico_e_isolado_por_guild(tmp_path):
+    from atlas.models import GuildSnapshot
+
+    loja = SnapshotStore(tmp_path)
+    loja.salvar(1, GuildSnapshot(id=1, name="G1", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+    loja.salvar(2, GuildSnapshot(id=2, name="G2", owner_id=1, bot_role_id=2,
+                                 bot_permissions=0))
+    assert len(loja.listar_versoes(1)) == 1
+    assert len(loja.listar_versoes(2)) == 1
+    assert loja.ler_versao(1, 1)["servidor"] == "G1"

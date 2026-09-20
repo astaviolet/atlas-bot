@@ -75,6 +75,43 @@ class SnapshotStore:
     def _caminho(self, guild_id: int) -> Path:
         return self.raiz / f"{int(guild_id)}.json"
 
+    def _historico(self, guild_id: int) -> Path:
+        return self.raiz / f"{int(guild_id)}.historico.jsonl"
+
+    def proxima_versao(self, guild_id: int) -> int:
+        """Versao anterior + 1. Comeca em 1."""
+        return (self.ultima_versao(guild_id) or 0) + 1
+
+    def ultima_versao(self, guild_id: int) -> int | None:
+        versoes = self.listar_versoes(guild_id)
+        return versoes[-1]["versao"] if versoes else None
+
+    def listar_versoes(self, guild_id: int) -> list[dict[str, Any]]:
+        """Metadados de cada versao, da mais antiga para a mais nova (spec 88).
+
+        So metadados de proposito: listar nao precisa carregar o estado inteiro
+        de cada versao, e o historico pode ficar grande.
+        """
+        caminho = self._historico(guild_id)
+        if not caminho.exists():
+            return []
+        saida = []
+        for linha in caminho.read_text(encoding="utf-8").splitlines():
+            linha = linha.strip()
+            if not linha:
+                continue
+            try:
+                meta = json.loads(linha)
+            except json.JSONDecodeError:
+                continue  # linha corrompida nao invalida o resto do historico
+            saida.append({
+                "versao": meta.get("versao"),
+                "salvo_em": meta.get("salvo_em"),
+                "autor": meta.get("autor"),
+                "resumo": meta.get("resumo"),
+            })
+        return saida
+
     def salvar(
         self,
         guild_id: int,
@@ -82,11 +119,17 @@ class SnapshotStore:
         *,
         autor: str = "?",
         resumo: str = "",
-        versao: int = 1,
+        versao: int | None = None,
     ) -> Path:
         """Grava o estado atual antes de mudar. Nunca levanta: falhar aqui nao
-        pode impedir a operacao, mas tem que ficar no log."""
+        pode impedir a operacao, mas tem que ficar no log.
+
+        Alem do arquivo "ultimo estado", acrescenta uma linha ao historico. Sem
+        historico nao ha versionamento (spec 88) - so um snapshot que some.
+        """
         try:
+            if versao is None:
+                versao = self.proxima_versao(guild_id)
             dados = _sanitizar({
                 "versao": versao,
                 "salvo_em": time.time(),
@@ -99,11 +142,33 @@ class SnapshotStore:
             })
             self.raiz.mkdir(parents=True, exist_ok=True)
             caminho = self._caminho(guild_id)
-            caminho.write_text(json.dumps(dados, ensure_ascii=False), encoding="utf-8")
+            texto = json.dumps(dados, ensure_ascii=False)
+            caminho.write_text(texto, encoding="utf-8")
+
+            hist = self._historico(guild_id)
+            with hist.open("a", encoding="utf-8") as fh:
+                fh.write(texto + "\n")
             return caminho
         except Exception:  # noqa: BLE001 - diagnostico nao pode derrubar nada
             log.exception("nao deu para salvar o snapshot do guild %s", guild_id)
             raise
+
+    def ler_versao(self, guild_id: int, versao: int) -> dict[str, Any] | None:
+        """Le uma versao especifica do historico. None se nao existe."""
+        caminho = self._historico(guild_id)
+        if not caminho.exists():
+            return None
+        for linha in caminho.read_text(encoding="utf-8").splitlines():
+            linha = linha.strip()
+            if not linha:
+                continue
+            try:
+                dados = json.loads(linha)
+            except json.JSONDecodeError:
+                continue
+            if dados.get("versao") == versao:
+                return dados
+        return None
 
     def ler(self, guild_id: int) -> dict[str, Any] | None:
         caminho = self._caminho(guild_id)
