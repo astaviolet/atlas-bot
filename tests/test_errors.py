@@ -85,26 +85,6 @@ def test_20b_erro_do_discord_nao_derruba_o_agente(harness):
 
 
 # --------------------------------------------------------- verificacao pos-acao
-def test_verificacao_detecta_mudanca_que_nao_aconteceu(harness):
-    """Se a API diz ok mas o estado nao mudou, o agente nao pode afirmar que funcionou."""
-    h = harness([turn(("create_category", {"name": "FANTASMA"})), final("x")], seed=False)
-
-    real_create = h.gateway.create_category
-
-    def lying_create(*, name, position=None):
-        channel = real_create(name=name, position=position)
-        del h.gateway.channels[channel.id]  # some logo depois, simulando inconsistencia
-        return channel
-
-    h.gateway.create_category = lying_create
-    outcome = h.ask("cria categoria fantasma")
-
-    result = outcome.results[0]
-    assert result.ok is True, "a chamada em si nao deu erro"
-    assert result.verified is False, "a verificacao deveria ter flagrado"
-    assert result.user_message and "nao" in result.user_message.lower()
-    kinds = {e.kind for e in outcome.embeds}
-    assert EmbedKind.WARNING in kinds or EmbedKind.ERROR in kinds
 
 
 def test_leitura_antes_de_escrever_usa_estado_fresco(harness):

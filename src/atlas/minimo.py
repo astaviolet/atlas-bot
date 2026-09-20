@@ -325,7 +325,9 @@ class AtlasMinimo(discord.Client):
         texto = limpar(" ".join(p for p in partes if p), limite=MAX_TEXTO)
         if not texto:
             texto = limpar(fallback, limite=MAX_TEXTO) or "Feito."
-        await self._responder(message, texto)
+        # se nada deu certo, o usuario ve erro - nao "Feito." mentiroso
+        kind = EmbedKind.SUCCESS if feitas else EmbedKind.ERROR
+        await self._responder(message, texto, kind=kind)
 
     @staticmethod
     def _resumo_das_acoes(calls: list[Any]) -> str:
@@ -362,7 +364,9 @@ class AtlasMinimo(discord.Client):
         return f"Feito: {len(nomes)} acoes."
 
     # ----------------------------------------------------------------- saida
-    async def _responder(self, message: discord.Message, texto: str) -> None:
+    async def _responder(
+        self, message: discord.Message, texto: str, *, kind: EmbedKind = EmbedKind.RESULT
+    ) -> None:
         """Uma mensagem, um embed, sem titulo e sem rodape. Sempre.
 
         Mencao de @everyone sai armada: pode aparecer no texto, nunca dispara.
@@ -370,7 +374,7 @@ class AtlasMinimo(discord.Client):
         texto = limpar(texto or "", limite=MAX_TEXTO) or "Feito."
         for palavra in ("@everyone", "@here"):
             texto = texto.replace(palavra, palavra.replace("@", ""))
-        embed = EmbedSpec(kind=EmbedKind.RESULT, title="", description=texto).to_discord_embed()
+        embed = EmbedSpec(kind=kind, title="", description=texto).to_discord_embed()
         try:
             await message.reply(embed=embed, mention_author=False)
         except Exception:

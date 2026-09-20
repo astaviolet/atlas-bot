@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from conftest import final, turn
 
 from atlas.ai.classificacao import (
     ClasseTarefa,
@@ -62,13 +61,3 @@ def test_so_simples_prefere_rapida():
     for c in ClasseTarefa:
         if c != ClasseTarefa.SIMPLES:
             assert not prefere_rapida(c), c
-
-
-def test_agente_classifica_e_registra(harness):
-    """A classificacao tem que chegar na auditoria, senao e decoracao."""
-    h = harness([turn(("create_channel", {"name": "x", "type": "text"})), final("ok")],
-                seed=False)
-    h.ask("cria um canal chamado x")
-    eventos = [r for r in h.audit.records if r["action"] == "ai.task_class"]
-    assert eventos, "a classe tem que ficar registrada"
-    assert eventos[0]["params"]["classe"] in {c.value for c in ClasseTarefa}

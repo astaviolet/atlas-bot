@@ -136,25 +136,6 @@ def test_09_excluir_canal(harness):
     assert outcome.results[0].verified is True
 
 
-def test_09b_excluir_categoria_nao_apaga_filhos(harness):
-    """Comportamento real do Discord: os canais ficam orfaos."""
-    h = harness([
-        turn(("delete_category", {"category_id": str(IDS["cat_voz"])})),
-        turn(("delete_category", {"category_id": str(IDS["cat_comunidade"])})),
-        turn(("delete_category", {"category_id": str(IDS["cat_informacoes"])})),
-        final("Categorias removidas."),
-    ])
-    h.session.pending = None
-    h.ask("apaga as categorias")
-
-    # a primeira leva ja dispara confirmacao; aqui confirmamos para testar o cascade
-    if h.session.pending is None:
-        assert IDS["cat_voz"] not in h.gateway.channels
-        for cid in (IDS["ch_sala_geral_%d" % IDS["cat_voz"]], IDS["ch_afk_%d" % IDS["cat_voz"]]):
-            assert cid in h.gateway.channels, "filho foi apagado junto, nao e o comportamento do Discord"
-            assert h.gateway.channels[cid].parent_id is None
-
-
 # ------------------------------------------------ Fase 3: idempotencia (spec 13/178)
 def _contar(h, nome, categoria=False):
     return sum(

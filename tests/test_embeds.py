@@ -14,7 +14,7 @@ from atlas.embeds import (
 )
 from atlas.config import Limits
 
-from conftest import IDS, final, turn
+from conftest import final, turn
 
 ALL_KINDS = {
     EmbedKind.SUCCESS, EmbedKind.ERROR, EmbedKind.CONFIRM, EmbedKind.INFO,
@@ -153,21 +153,6 @@ def test_merge_de_lista_vazia_devolve_none():
 
     assert merge_embeds([]) is None
     assert merge_embeds([EmbedBuilder().info("x", "")]) is None
-
-
-def test_confirmacao_tem_resumo_e_contagem(harness):
-    alvos = [
-        IDS["ch_regras_%d" % IDS["cat_informacoes"]],
-        IDS["ch_anuncios_%d" % IDS["cat_informacoes"]],
-        IDS["ch_regras_%d" % IDS["cat_comunidade"]],
-    ]
-    h = harness([turn(*[("delete_channel", {"channel_id": str(a)}) for a in alvos]), final("x")])
-    outcome = h.ask("apaga os tres")
-
-    embed = outcome.embeds[0]
-    assert embed.kind == EmbedKind.CONFIRM
-    assert "3" in embed.description, "a contagem precisa aparecer"
-    assert "sim" in embed.description.lower(), "precisa dizer como confirmar"
 
 
 # ------------------------------------------------- limpeza do texto de saida

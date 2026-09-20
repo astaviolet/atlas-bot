@@ -103,7 +103,10 @@ class Harness:
                  gateway: FakeGateway | None = None, seed: bool = True) -> None:
         self._script = list(script or [])
         self.gateway = gateway or FakeGateway(guild_id=GUILD_ID)
-        if seed and not self.gateway.channels:
+        # FakeGateway ja nasce com 2 canais (geral-cat, bate-papo), entao testar
+        # `not self.gateway.channels` pulava o seed inteiro e os testes rodavam
+        # contra um servidor de 2 canais. Sempre semeia.
+        if seed:
             self.gateway.seed_gamer_layout()
         self.limits = Limits()
         self.policy = politica_para(self.limits, GUILD_ID)
@@ -121,7 +124,14 @@ class Harness:
         self.audit = AuditLog()
 
     def chamar(self, nome: str, args: dict[str, Any]) -> Any:
-        """Executa uma ferramenta de verdade e devolve o resultado."""
+        """Executa uma ferramenta de verdade e devolve o resultado.
+
+        Refaz o snapshot antes de cada chamada, igual ao bot real: em producao o
+        ctx e montado fresco a cada mensagem, entao a ferramenta sempre ve o
+        servidor como esta agora. Congelar o snapshot no init fazia delete/edit
+        nao acharem canais criados na chamada anterior.
+        """
+        self.ctx.snapshot = self.gateway.snapshot()
         return self.registry.get(nome).handler(self.ctx, args)
 
     def ask(self, texto: str) -> _Desfecho:
@@ -173,12 +183,25 @@ class Harness:
                     )
         from atlas.embeds import EmbedKind, EmbedSpec
 
-        if desfecho.blocked and not desfecho.results:
+        falhou_tudo = desfecho.results and not any(r.ok for r in desfecho.results)
+        if falhou_tudo or (desfecho.blocked and not desfecho.results):
             # recusa total: sobrescreve o texto do modelo, igual ao produto.
             desfecho.estado = "refused"
+            motivo = "Nao faco isso." if not desfecho.results else (
+                desfecho.results[0].user_message or "Deu erro."
+            )
             desfecho.embeds = [
-                EmbedSpec(kind=EmbedKind.ERROR, title="", description="Nao faco isso.")
+                EmbedSpec(kind=EmbedKind.ERROR, title="", description=motivo)
             ]
+        elif desfecho.results and all(r.ok for r in desfecho.results):
+            # deu tudo certo: o kind e SUCCESS, e isso sobrescreve o embed de
+            # texto que o passo final() criou (que nasce como RESULT).
+            for emb in desfecho.embeds:
+                emb.kind = EmbedKind.SUCCESS
+            if not desfecho.embeds:
+                desfecho.embeds.append(
+                    EmbedSpec(kind=EmbedKind.SUCCESS, title="", description="Feito.")
+                )
         elif not desfecho.embeds:
             desfecho.embeds.append(
                 EmbedSpec(kind=EmbedKind.RESULT, title="", description="Feito.")

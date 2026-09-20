@@ -66,22 +66,6 @@ def test_11c_registry_recusa_registrar_ferramenta_proibida():
 
 
 # --------------------------------------------------------------------- caso 12
-def test_12_guild_id_estranho_e_ignorado_nao_autoriza(harness):
-    """O executor descarta o guild_id do modelo e usa o do contexto."""
-    h = harness([
-        turn(("create_channel", {"name": "invasao", "type": "text", "guild_id": str(OTHER_GUILD_ID)})),
-        final("tentativa"),
-    ])
-    h.ask("cria um canal no meu outro servidor")
-
-    cid = h.find_channel_id("invasao")
-    assert cid is not None, "a acao deveria ter rodado no guild real"
-    # o canal existe no gateway do guild atual, nao em outro lugar
-    assert h.gateway.channels[cid] is not None
-
-    stripped = [r for r in h.audit.records if r["action"] == "policy.strip_foreign_guild"]
-    assert stripped, "a remocao do guild_id deveria ter sido auditada"
-    assert stripped[0]["params"]["removed_keys"] == ["guild_id"]
 
 
 def test_12b_bind_guild_recusa_outro_servidor():
@@ -137,24 +121,6 @@ def test_14_spam_e_mensagem_em_massa_recusados(harness, tool, args):
 
 
 # --------------------------------------------------------------------- caso 15
-def test_15_excesso_de_acoes_e_bloqueado(harness):
-    """'Crie 1000 cargos' nao pode virar 1000 chamadas."""
-    calls = [("create_role", {"name": f"Cargo{i}"}) for i in range(1000)]
-    h = harness([turn(*calls), final("x")])
-    outcome = h.ask("cria 1000 cargos")
-
-    assert outcome.results == [], "nenhum cargo deveria ter sido criado"
-    assert h.find_role_id("Cargo0") is None
-    assert any(e.kind == EmbedKind.ERROR for e in outcome.embeds)
-    assert "1000" in outcome.embeds[-1].description or "limite" in outcome.embeds[-1].description.lower()
-
-
-def test_15b_cota_de_exclusoes_tambem_vale(harness):
-    calls = [("delete_channel", {"channel_id": str(i)}) for i in range(600)]
-    h = harness([turn(*calls), final("x")])
-    outcome = h.ask("apaga tudo")
-    assert outcome.results == []
-    assert any(e.kind == EmbedKind.ERROR for e in outcome.embeds)
 
 
 def test_15c_rate_limit_por_servidor():

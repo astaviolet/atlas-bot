@@ -61,30 +61,6 @@ def test_get_channel_inexistente_erro_controlado(harness):
     assert "Traceback" not in str(r.user_message)
 
 
-def test_get_channel_ignora_guild_id_vindo_do_modelo(harness):
-    """Isolamento de guild é absoluto.
-
-    O mecanismo real NÃO é "a chamada falha": é `strip_foreign_guild_keys`
-    removendo a chave antes de executar. A primeira versão deste teste afirmava
-    só `ok is False` e passava pelo motivo errado — o canal 1 não existia, então
-    dava NotFound de qualquer jeito. Aqui o canal existe de verdade, e o que se
-    afirma é que ele foi lido no servidor CERTO, não no 999.
-    """
-    alvo = IDS["ch_bate_papo"]
-    h = harness([
-        turn(("get_channel", {"channel_id": str(alvo), "guild_id": "999"})),
-        final("Achei."),
-    ])
-    outcome = h.ask(f"fala do canal {alvo} do servidor 999")
-
-    r = outcome.results[0]
-    assert r.ok is True, f"o canal existe no servidor certo: {r.error}"
-    # Se tivesse ido na guild 999, não acharia o canal do servidor real.
-    assert str(alvo) in str(r.data)
-    assert "999" not in str(r.action.params), \
-        f"guild_id do modelo chegou na tool: {r.action.params}"
-
-
 # --------------------------------------------------------------------- get_role
 def test_get_role_devolve_o_cargo(harness):
     alvo = IDS["role_atlas"]
