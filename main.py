@@ -81,9 +81,16 @@ def main() -> int:
     if not settings.discord_token:
         raise RuntimeError("Falta DISCORD_TOKEN no .env - sem ele o bot nao conecta.")
 
-    modelos = [m.strip() for m in settings.ai_model.split(",") if m.strip()]
-    print(f"[config] IA: {settings.ai_base_url}  modelos={modelos}")
-    print("[config] chave: " + ("configurada" if settings.ai_api_key else "nao necessaria (endpoint anonimo)"))
+    from atlas.ai import build_catalog
+
+    catalogo = build_catalog(settings)
+    rotas = sum(len(g.models) for g in catalogo)
+    print(f"[config] pool de IA: {len(catalogo)} gateways, {rotas} rotas "
+          f"({', '.join(g.id for g in catalogo)})")
+    if settings.usuario_configurou_ia:
+        print(f"[config] gateway do .env na frente: {settings.ai_base_url} "
+              f"modelos={settings.ai_model}")
+    print("[config] chave: " + ("configurada" if settings.ai_api_key else "nao necessaria (pool anonimo)"))
 
     run_bot(settings, audit)
     return 0

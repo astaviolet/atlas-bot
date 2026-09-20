@@ -32,15 +32,13 @@ SECRET_ENV_NAMES: frozenset[str] = frozenset(
 
 
 # ---------------------------------------------------------------- sem chave
-# O provedor padrao e publico e anonimo: nao pede conta, nao pede cartao e nao
-# pede chave. As tres variaveis continuam existindo e continuam vencendo - se
-# um dia voce quiser apontar para outro gateway, e so preencher o .env.
+# Nao ha default de provedor aqui de proposito. Quando AI_BASE_URL/AI_MODEL
+# estao vazios, quem decide e o POOL anonimo em atlas.ai.providers - varios
+# gateways, varias rotas, failover entre elas. Um default unico aqui seria
+# menos capacidade e uma segunda fonte de verdade.
 #
-# AI_MODEL e uma lista em ordem de preferencia. Endpoints gratuitos devolvem
-# 429/503 com frequencia, entao o cliente tenta o proximo da lista. Os tres
-# abaixo foram verificados como anonimos E com suporte a tool calling.
-DEFAULT_AI_BASE_URL = "https://api.llm7.io/v1"
-DEFAULT_AI_MODEL = "codestral-latest,GLM-5.3-Flash,minimax-m2.7"
+# Preencher as tres variaveis coloca o gateway do usuario NA FRENTE do pool,
+# sem desliga-lo: ele vira reserva.
 
 # O SDK openai se recusa a instanciar com api_key vazia, mas este endpoint
 # ignora o header de autorizacao (verificado: aceita "Bearer nao-tem-chave" e
@@ -101,15 +99,6 @@ class Settings:
     limits: Limits = field(default_factory=Limits)
 
     @property
-    def effective_base_url(self) -> str:
-        """O que vai ser usado de fato: o que o usuario definiu, ou o padrao anonimo."""
-        return self.ai_base_url or DEFAULT_AI_BASE_URL
-
-    @property
-    def effective_model(self) -> str:
-        return self.ai_model or DEFAULT_AI_MODEL
-
-    @property
     def usuario_configurou_ia(self) -> bool:
         """True so quando o usuario preencheu AI_BASE_URL/AI_MODEL no .env.
 
@@ -123,8 +112,8 @@ class Settings:
         return {
             "discord_token": "***" if self.discord_token else "(vazio)",
             "ai_api_key": "***" if self.ai_api_key else "(nao necessaria - endpoint anonimo)",
-            "ai_base_url": self.effective_base_url + ("" if self.ai_base_url else "  (padrao anonimo)"),
-            "ai_model": self.effective_model + ("" if self.ai_model else "  (padrao anonimo)"),
+            "ai_base_url": self.ai_base_url or "(pool anonimo - varios gateways)",
+            "ai_model": self.ai_model or "(pool anonimo - escolhido em runtime)",
             "control_channel_id": self.control_channel_id,
             "audit_path": self.audit_path,
         }

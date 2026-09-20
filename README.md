@@ -74,18 +74,19 @@ ATLAS_AUDIT_PATH=logs/audit.jsonl
 ```
 
 **Só `DISCORD_TOKEN` é obrigatório.** As três `AI_*` podem ficar vazias: o bot
-cai no padrão anônimo embutido em `config.py`.
+cai no pool anônimo definido em `atlas/ai/providers.py`.
 
 | Variável | Obrigatória | Padrão quando vazia |
 |---|---|---|
 | `DISCORD_TOKEN` | sim | — (exigência do Discord) |
-| `AI_API_KEY` | não | nenhuma; o endpoint ignora o header de auth |
-| `AI_BASE_URL` | não | `https://api.llm7.io/v1` |
-| `AI_MODEL` | não | `codestral-latest,GLM-5.3-Flash,minimax-m2.7` |
+| `AI_API_KEY` | não | nenhuma; o pool é anônimo |
+| `AI_BASE_URL` | não | pool anônimo (vários gateways) |
+| `AI_MODEL` | não | escolhido em runtime pelo router |
 
-`AI_MODEL` é uma **lista em ordem de preferência**. Endpoint gratuito devolve
-429/503 com frequência, então o cliente tenta o próximo da lista antes de
-desistir. Erros permanentes (401) não fazem failover — falham na hora.
+Se você preencher `AI_BASE_URL` + `AI_MODEL`, esse gateway entra **na frente**
+do pool anônimo — não no lugar dele. Ele vira prioridade e o pool vira reserva,
+então preencher não reduz a resiliência. `AI_MODEL` aceita lista separada por
+vírgula.
 
 Trocar de provedor **não exige mudança de código**: aponte `AI_BASE_URL` para
 outro endpoint compatível, ajuste `AI_MODEL` e, se ele exigir, preencha

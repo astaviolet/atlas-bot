@@ -495,8 +495,8 @@ def test_configuracao_padrao_nao_exige_nenhuma_credencial_de_ia():
 
     s = Settings(discord_token="t")
     assert s.missing() == [], "so o token do Discord e obrigatorio"
-    assert s.effective_base_url.startswith("https://")
-    assert s.effective_model
+    # sem default unico de proposito: quem decide e o pool anonimo
+    assert s.ai_base_url == "" and s.ai_model == ""
 
 
 def test_default_nao_finge_ser_configuracao_do_usuario():
@@ -511,16 +511,20 @@ def test_default_nao_finge_ser_configuracao_do_usuario():
     assert explicita.usuario_configurou_ia is True
 
 
-def test_env_vazio_cai_no_padrao_anonimo(monkeypatch):
-    from atlas.config import DEFAULT_AI_BASE_URL, DEFAULT_AI_MODEL, load_settings
+def test_env_vazio_deixa_o_pool_anonimo_decidir(monkeypatch):
+    """Sem AI_* preenchido, o bot nao fica sem IA: o pool assume."""
+    from atlas.ai import Router
+    from atlas.config import load_settings
 
     for k in ("AI_BASE_URL", "AI_API_KEY", "AI_MODEL"):
         monkeypatch.delenv(k, raising=False)
     s = load_settings(env_file=None, require_secrets=False)
-    assert s.effective_base_url == DEFAULT_AI_BASE_URL
-    assert s.effective_model == DEFAULT_AI_MODEL
-    assert s.ai_api_key == ""
+    assert s.ai_api_key == "" and s.ai_base_url == "" and s.ai_model == ""
     assert s.usuario_configurou_ia is False
+
+    cliente = build_ai_client(s)
+    assert isinstance(cliente, Router)
+    assert cliente.total_routes > 0, "pool vazio deixaria o bot sem IA"
 
 
 def test_env_preenchido_vence_o_padrao(monkeypatch):
@@ -722,12 +726,14 @@ def test_lista_de_modelos_vazia_levanta():
         OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name=" , , ")
 
 
-def test_padrao_tem_mais_de_um_modelo_para_failover():
-    """Endpoint gratuito oscila; um modelo so derruba o bot."""
-    from atlas.config import DEFAULT_AI_MODEL
+def test_pool_tem_rotas_em_mais_de_um_gateway_para_failover():
+    """Depender de um gateway so derruba o bot quando ele oscila."""
+    from atlas.config import Settings
 
-    modelos = [m.strip() for m in DEFAULT_AI_MODEL.split(",") if m.strip()]
-    assert len(modelos) >= 2, "precisa de ao menos dois modelos para ter failover"
+    catalogo = build_ai_client(Settings(discord_token="t")).catalog
+    gateways = {g.id for g in catalogo}
+    assert len(gateways) >= 2, f"precisa de ao menos dois gateways, ha {gateways}"
+    assert sum(len(g.models) for g in catalogo) >= 4, "poucas rotas = pouco failover"
 
 
 # --------------------------------------------------------- ponta a ponta HTTP
