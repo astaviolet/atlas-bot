@@ -1031,3 +1031,111 @@ def test_sem_canal_de_controle_mencao_ainda_funciona():
     canal = FakeTextChannel(11, "geral")
     assert mensagem_autorizada(control=None, message_channel=canal, mencionado=True) is True
     assert mensagem_autorizada(control=None, message_channel=canal, mencionado=False) is False
+
+
+# ---------------------------------------------------------- main.py --pool
+def _rode(capsys, monkeypatch, argv):
+    import sys
+
+    import main as main_mod
+
+    monkeypatch.setattr(sys, "argv", ["main.py", *argv])
+    return main_mod.main(), capsys.readouterr()
+
+
+def test_pool_lista_o_catalogo_sem_sondar(capsys, monkeypatch):
+    """--pool tem que ser instantaneo: o workflow roda isso antes de o bot subir.
+
+    Se algum dia alguem trocar --pool por --health aqui, o runner vai gastar a
+    cota gratuita sondando 12 rotas antes de atender uma unica mensagem.
+    """
+    import main as main_mod
+
+    chamadas = []
+    monkeypatch.setattr(
+        main_mod, "__file__", main_mod.__file__
+    )  # garante modulo importado
+    import atlas.ai as ai
+
+    original = ai.build_catalog
+    monkeypatch.setattr(ai, "build_catalog", lambda s: (chamadas.append(1), original(s))[1])
+
+    codigo, saida = _rode(capsys, monkeypatch, ["--pool"])
+    assert codigo == 0
+    assert "2 gateways, 12 rotas" in saida.out
+    assert "kilo" in saida.out and "llm7" in saida.out
+
+
+def test_pool_falha_com_saida_3_quando_nao_ha_rota(capsys, monkeypatch):
+    """Pool vazio tem que derrubar o job, nao deixar o bot subir no escuro."""
+    import atlas.ai as ai
+
+    monkeypatch.setattr(ai, "build_catalog", lambda s: [])
+
+    codigo, saida = _rode(capsys, monkeypatch, ["--pool"])
+    assert codigo == 3
+    assert "NENHUMA rota" in saida.out
+
+
+# ------------------------------------- snapshot contra objetos reais do discord.py
+def test_snapshot_le_permissao_customizada_de_canal_real():
+    """Regressao: PermissionOverwrite nao tem .allow/.deny, tem .pair().
+
+    O FakeGateway nunca exercitou DiscordGateway._channel, entao 356 testes
+    passaram com o bot quebrado em producao: qualquer canal com uma permissao
+    customizada derrubava o snapshot na primeira mensagem do usuario.
+    """
+    import types
+    from unittest import mock
+
+    import discord
+
+    from atlas.discord_gateway import DiscordGateway
+
+    papel = mock.create_autospec(discord.Role, instance=True)
+    papel.id = 4242
+    ow = discord.PermissionOverwrite(manage_channels=True, send_messages=False)
+    allow, deny = ow.pair()
+
+    canal = types.SimpleNamespace(
+        id=99,
+        name="geral",
+        type=discord.ChannelType.text,
+        position=1,
+        category=None,
+        topic=None,
+        nsfw=False,
+        slowmode_delay=0,
+        overwrites={papel: ow},
+    )
+
+    convertido = DiscordGateway._channel(canal)
+
+    assert len(convertido.overwrites) == 1
+    gravado = convertido.overwrites[0]
+    assert gravado.target_id == 4242
+    assert gravado.target_type == "role"          # papel entra como role, nao member
+    assert gravado.allow == allow.value           # manage_channels permitido
+    assert gravado.deny == deny.value             # send_messages negado
+    assert discord.Permissions(gravado.allow).manage_channels is True
+    assert discord.Permissions(gravado.deny).send_messages is True
+
+
+def test_snapshot_de_membro_entr_como_target_member():
+    import types
+    from unittest import mock
+
+    import discord
+
+    from atlas.discord_gateway import DiscordGateway
+
+    membro = mock.create_autospec(discord.Member, instance=True)
+    membro.id = 777
+    canal = types.SimpleNamespace(
+        id=99, name="geral", type=discord.ChannelType.text, position=0,
+        category=None, topic=None, nsfw=False, slowmode_delay=0,
+        overwrites={membro: discord.PermissionOverwrite(view_channel=True)},
+    )
+    convertido = DiscordGateway._channel(canal)
+    assert convertido.overwrites[0].target_type == "member"
+    assert discord.Permissions(convertido.overwrites[0].allow).view_channel is True

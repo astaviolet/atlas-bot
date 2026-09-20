@@ -24,6 +24,11 @@ def main() -> int:
     parser.add_argument("--check", action="store_true", help="valida configuracao e sai")
     parser.add_argument("--health", action="store_true", help="re-testa o pool de IA e imprime o painel")
     parser.add_argument("--health-pausa", type=float, default=1.0, help="pausa entre sondas do --health")
+    parser.add_argument(
+        "--pool",
+        action="store_true",
+        help="lista o pool de IA do catalogo, sem sondar (nao consome cota)",
+    )
     parser.add_argument("--demo", action="store_true", help="roda contra servidor simulado, sem Discord")
     parser.add_argument("--demo-text", default=None, help="pedido a usar no modo demo")
     args = parser.parse_args()
@@ -39,6 +44,25 @@ def main() -> int:
         return 2
 
     audit = setup_logging(audit_path=settings.audit_path)
+
+    if args.pool:
+        from atlas.ai import build_catalog
+        from atlas.ai.providers import catalog_summary
+
+        catalogo = build_catalog(settings)
+        resumo = catalog_summary(catalogo)
+        print(
+            f"[pool] {resumo['gateways']} gateways, {resumo['rotas']} rotas "
+            f"({', '.join(resumo['ids']) or 'nenhum'})"
+        )
+        for gw in catalogo:
+            nomes = ", ".join(r.model for r in gw.models)
+            acesso = "sem chave" if gw.access is gw.access.NO_AUTH else "exige chave"
+            print(f"  - {gw.id:<8} rpm={gw.rpm} conc={gw.concurrency} {acesso} :: {nomes}")
+        if resumo["rotas"] == 0:
+            print("[pool] NENHUMA rota disponivel - o bot vai falhar na primeira chamada.")
+            return 3
+        return 0
 
     if args.health:
         from atlas.ai import build_catalog, formatar_painel

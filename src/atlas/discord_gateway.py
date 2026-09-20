@@ -85,11 +85,16 @@ class DiscordGateway:
             nsfw=bool(getattr(channel, "nsfw", False)),
             slowmode_delay=int(getattr(channel, "slowmode_delay", 0) or 0),
             overwrites=[
+                # discord.PermissionOverwrite nao tem .allow/.deny - tem .pair(),
+                # que devolve (Permissions permitidas, Permissions negadas). Ler
+                # .allow aqui derrubava o snapshot de qualquer canal que tivesse
+                # uma permissao customizada, ou seja: o bot morria na primeira
+                # mensagem de quase todo servidor real.
                 Overwrite(
                     target_id=target.id,
                     target_type="role" if isinstance(target, discord.Role) else "member",
-                    allow=pair.allow.value,
-                    deny=pair.deny.value,
+                    allow=pair.pair()[0].value,
+                    deny=pair.pair()[1].value,
                 )
                 for target, pair in getattr(channel, "overwrites", {}).items()
             ],

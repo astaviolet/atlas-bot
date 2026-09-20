@@ -90,6 +90,17 @@ jobs:
           ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
         run: python main.py --check
 
+      # Lista o pool do catalogo. Usa --pool em vez de --health de proposito:
+      # sondar 12 rotas antes de subir gastaria a cota gratuita que o bot vai
+      # precisar. A sondagem de verdade acontece no router, sob demanda.
+      # Falha aqui (exit 3 = zero rotas) derruba o job, porque bot sem rota nao serve.
+      - name: Conferir pool de IA
+        env:
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
+          AI_BASE_URL: ${{ vars.AI_BASE_URL }}
+          AI_MODEL: ${{ vars.AI_MODEL }}
+        run: python main.py --pool
+
       - name: Rodar bot
         env:
           DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
@@ -98,7 +109,7 @@ jobs:
           AI_MODEL: ${{ vars.AI_MODEL }}
           ATLAS_CONTROL_CHANNEL_ID: ${{ vars.ATLAS_CONTROL_CHANNEL_ID }}
           PYTHONUNBUFFERED: "1"
-          MAX_RUN_SECONDS: "20700"
+          MAX_RUN_SECONDS: "20400"
         run: |
           chmod +x scripts/run_bot.sh
           ./scripts/run_bot.sh
