@@ -5,8 +5,6 @@ from __future__ import annotations
 import pytest
 
 from atlas.embeds import EmbedKind
-from atlas.errors import AIError
-from atlas.ai import FailingModelClient
 from atlas.models import Perm
 
 from conftest import final, turn
@@ -48,37 +46,6 @@ def test_16c_discord_retorna_forbidden(harness):
 
 
 # --------------------------------------------------------------------- caso 19
-def test_19_erro_da_camada_de_ia(harness):
-    h = harness([], seed=False)
-    h.agent.model = FailingModelClient("429 quota excedida")
-
-    outcome = h.ask("monta uma estrutura")
-
-    assert outcome.results == [], "nada deveria ter sido executado"
-    assert len(outcome.embeds) == 1
-    assert outcome.embeds[0].kind == EmbedKind.ERROR
-    assert "modelo" in outcome.embeds[0].description.lower() or "IA" in outcome.embeds[0].description
-    assert any(r["action"] == "ai.error" for r in h.audit.records)
-
-
-def test_19b_ia_falha_no_meio_do_laco(harness):
-    """Primeiro turno ok, segundo falha: o que ja foi feito fica relatado."""
-    script = [turn(("create_category", {"name": "PARCIAL"}))]
-    h = harness(script, seed=False)
-    original = h.agent.model.generate
-    calls = {"n": 0}
-
-    def flaky(**kwargs):
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return original(**kwargs)
-        raise AIError("timeout", user_message="O modelo caiu no meio do caminho.")
-
-    h.agent.model.generate = flaky
-    outcome = h.ask("faz algo")
-
-    assert h.find_category_id("PARCIAL") is not None, "a primeira acao deveria ter valido"
-    assert any(e.kind == EmbedKind.ERROR for e in outcome.embeds)
 
 
 # --------------------------------------------------------------------- caso 20

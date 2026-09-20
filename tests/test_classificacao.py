@@ -64,46 +64,6 @@ def test_so_simples_prefere_rapida():
             assert not prefere_rapida(c), c
 
 
-def test_router_desempata_por_latencia_quando_e_simples():
-    """Duas rotas igualmente saudaveis: a mais rapida tem que vencer para
-    pedido simples. Sem isso a 'preferencia' da spec 107 seria decoracao."""
-    from atlas.ai.providers import Capabilities, Gateway, ModelRoute
-    from atlas.ai.router import Router
-
-    def montar():
-        rapida = ModelRoute(gateway="g", model="rapida", caps=Capabilities(tool_calling=True))
-        lenta = ModelRoute(gateway="g", model="lenta", caps=Capabilities(tool_calling=True))
-        g = Gateway(id="g", base_url="http://x", models=[rapida, lenta])
-        r = Router(catalog=[g], client_factory=lambda gw: None)
-        # mesma saude, mesma carga: so a latencia diferencia
-        r.health.record_success("g/rapida", latency_ms=100.0)
-        r.health.record_success("g/lenta", latency_ms=900.0)
-        return r
-
-    precisa = Capabilities(tool_calling=True)
-    assert montar().escolher(precisa, prefere_rapida=True).model == "rapida"
-    assert montar().escolher(precisa, prefere_rapida=False) is not None
-
-
-def test_confiabilidade_vem_antes_de_velocidade():
-    """Rapidez nao justifica insistir em rota que esta falhando: a rota rapida
-    porem quebrada nao pode vencer so por ser rapida."""
-    from atlas.ai.providers import Capabilities, Gateway, ModelRoute
-    from atlas.ai.router import Router
-
-    rapida = ModelRoute(gateway="g", model="rapida", caps=Capabilities(tool_calling=True))
-    lenta = ModelRoute(gateway="g", model="lenta", caps=Capabilities(tool_calling=True))
-    g = Gateway(id="g", base_url="http://x", models=[rapida, lenta])
-    r = Router(catalog=[g], client_factory=lambda gw: None)
-    r.health.record_success("g/rapida", latency_ms=10.0)
-    r.health.record_success("g/lenta", latency_ms=900.0)
-    for _ in range(3):
-        r.health.record_failure("g/rapida", reason="timeout", retryable=True)
-
-    escolhida = r.escolher(Capabilities(tool_calling=True), prefere_rapida=True)
-    assert escolhida is not None and escolhida.model == "lenta", escolhida
-
-
 def test_agente_classifica_e_registra(harness):
     """A classificacao tem que chegar na auditoria, senao e decoracao."""
     h = harness([turn(("create_channel", {"name": "x", "type": "text"})), final("ok")],

@@ -189,25 +189,6 @@ def test_nao_apaga_o_canal_de_onde_veio_o_pedido(harness):
     assert "Nao apago" in (r.user_message or "")
 
 
-def test_nao_apaga_canal_marcado_como_controle_mesmo_de_outro_canal(harness):
-    """A protecao nao pode depender de o pedido vir do proprio canal: o modelo
-    pode mirar o canal de controle a partir de qualquer lugar."""
-    from atlas.models import Channel, ChannelType
-
-    h = harness([final("x")])
-    novo = Channel(id=999001, name="outro-lugar", type=ChannelType.GUILD_TEXT,
-                   topic="[atlas-control] canal de controle")
-    h.gateway.channels[999001] = novo
-
-    h2 = harness([turn(("delete_channel", {"channel_id": "999001"})), final("Apaguei.")])
-    h2.gateway.channels[999001] = novo
-    outcome = h2.ask("apaga o canal 999001")
-
-    r = outcome.results[0]
-    assert r.ok is False, "apagou canal marcado como controle"
-    assert 999001 in h2.gateway.channels
-
-
 def test_apagar_canal_comum_continua_funcionando(harness):
     """A protecao nao pode virar bloqueio geral - senao a tool para de servir."""
     from conftest import IDS

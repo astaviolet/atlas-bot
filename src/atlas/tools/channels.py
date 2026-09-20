@@ -208,7 +208,7 @@ def _proteger_canal_de_controle(ctx: ToolContext, cid: int, channel: Any) -> Non
     mesmo se vier confirmacao do usuario - perder o canal de controle nao e
     reversivel pelo proprio bot.
     """
-    from ..bot import CONTROL_CHANNEL_NAME, CONTROL_TOPIC_MARK
+    from ..minimo import CONTROL_CHANNEL_NAME, CONTROL_TOPIC_MARK
 
     motivo = None
     if ctx.source_channel_id is not None and int(ctx.source_channel_id) == int(cid):

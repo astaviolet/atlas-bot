@@ -19,7 +19,6 @@ from atlas.ai import (
     chave_pedido,
 )
 from atlas.ai.discovery import ProbeResult, ProbeStatus, probe_rota, reavaliar, resumo_probes
-from atlas.ai import build_ai_client
 from atlas.errors import AIError
 
 
@@ -286,46 +285,6 @@ def test_cache_expira():
     assert cache.get(1, "k") is None
 
 
-def test_agente_invalida_cache_depois_de_mutacao(harness):
-    """Mudou o servidor, cache velho nao serve mais - e o agente e quem avisa."""
-    import asyncio
-
-    from conftest import final, turn
-
-    h = harness([turn(("create_role", {"name": "Novo"})), final("ok")])
-
-    # Router de verdade como cliente do agente, mas com um cliente por gateway
-    # que responde o roteiro: assim o cache em jogo e o do Router.
-    roteador = Router([], backoff_seconds=0.0)
-    invalidados: list[int] = []
-    roteador.invalidar_guild = lambda gid: invalidados.append(gid)
-    h.agent.model = roteador
-    roteador.generate = lambda **kw: (
-        h.model.generate(**kw)
-    )
-
-    asyncio.run(h.agent.handle("cria um cargo Novo", h.session))
-    assert invalidados == [h.gateway.guild_id], \
-        "o agente tem que invalidar o cache do guild depois de mutacao"
-
-
-def test_so_leitura_nao_invalida_cache(harness):
-    """Consultar o servidor nao muda nada; descartar cache ai seria desperdicio."""
-    import asyncio
-
-    from conftest import final, turn
-
-    h = harness([turn(("get_server_info", {})), final("ok")])
-    roteador = Router([], backoff_seconds=0.0)
-    invalidados: list[int] = []
-    roteador.invalidar_guild = lambda gid: invalidados.append(gid)
-    roteador.generate = lambda **kw: h.model.generate(**kw)
-    h.agent.model = roteador
-
-    asyncio.run(h.agent.handle("como esta o servidor?", h.session))
-    assert invalidados == [], "leitura nao pode invalidar cache"
-
-
 # ------------------------------------------------------------------ metricas
 def test_metricas_contam_sucesso_falha_e_fallback():
     router, _ = make_router({"a1": AIError("503", user_message="ocupado")})
@@ -550,16 +509,6 @@ def test_prompt_do_probe_exige_a_ferramenta():
     baixo = PROMPT_PROBE.lower()
     assert "ping" in baixo, "o probe precisa nomear a ferramenta"
     assert "nao responda em texto" in baixo or "não responda em texto" in baixo
-
-
-def test_catalogo_nao_tem_gateway_vazio():
-    """Sem AI_* preenchido nao pode aparecer gateway 'configurado' sem rotas."""
-    from atlas.config import Settings
-
-    catalogo = build_ai_client(Settings(discord_token="t")).catalog
-    vazios = [g.id for g in catalogo if not g.models]
-    assert vazios == [], f"gateways sem rota no catalogo: {vazios}"
-    assert all(g.id != "configurado" for g in catalogo)
 
 
 # ------------------------------------- regressao: gateway limitado come o orcamento

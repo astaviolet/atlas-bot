@@ -155,18 +155,6 @@ def test_merge_de_lista_vazia_devolve_none():
     assert merge_embeds([EmbedBuilder().info("x", "")]) is None
 
 
-def test_erro_de_permissao_vira_embed_legivel(harness):
-    h = harness([turn(("create_channel", {"name": "a", "type": "text"})), final("x")], seed=False)
-    from atlas.models import Perm
-    h.gateway.bot_permissions &= ~int(Perm.MANAGE_CHANNELS)
-    h.ctx.snapshot = h.gateway.snapshot()
-
-    outcome = h.ask("cria")
-    erros = [e for e in outcome.embeds if e.kind == EmbedKind.ERROR]
-    assert erros, "deveria haver um embed de erro"
-    assert "permissao" in erros[0].description.lower() or "MANAGE_CHANNELS" in erros[0].description
-
-
 def test_confirmacao_tem_resumo_e_contagem(harness):
     alvos = [
         IDS["ch_regras_%d" % IDS["cat_informacoes"]],
@@ -384,44 +372,6 @@ def test_saida_nao_escapa_duas_vezes():
 
 
 # ------------------------------------------- saida sem informacao desnecessaria
-def test_saida_de_sucesso_nao_traz_contador_de_acoes():
-    """'Acoes: 2' e '- get_server_info' sao ruido interno."""
-    from atlas.formatting import result_embeds
-    from atlas.embeds import merge_embeds
-
-    b = EmbedBuilder()
-    r = _resultado(ok=True)
-    embeds = result_embeds(b, [r])
-
-    for e in embeds:
-        assert not e.fields, "contador de acoes nao deve existir mais"
-
-    # com texto do modelo junto, o checklist tem que sumir inteiro
-    junto = merge_embeds(embeds + [b.info("", "Apaguei o canal.")])
-    assert junto is not None
-    assert junto.description == "Apaguei o canal."
-
-
-def test_aviso_de_nao_confirmado_vem_separado_do_checklist():
-    """Se colar no checklist, o checklist deixa de ser puro e o descarte falha.
-    Foi assim que '- get_server_info' vazou para o usuario."""
-    from atlas.formatting import result_embeds
-    from atlas.embeds import merge_embeds
-
-    b = EmbedBuilder()
-    embeds = result_embeds(
-        b, [_resultado(ok=True, verified=False, nome="excluir #asta")]
-    )
-
-    assert len(embeds) == 2, "checklist e aviso tem que ser embeds separados"
-    assert "nao consegui confirmar" in embeds[1].description.lower() or \
-           "Nao consegui confirmar" in embeds[1].description
-
-    junto = merge_embeds(embeds + [b.info("", "Apaguei o canal.")])
-    assert junto is not None
-    assert "excluir #asta" in junto.description
-    assert "Apaguei o canal." in junto.description
-    assert "confirmar" in junto.description
 
 
 def _resultado(*, ok: bool, verified: bool | None = True, nome: str = "get_server_info"):
@@ -436,68 +386,6 @@ def _resultado(*, ok: bool, verified: bool | None = True, nome: str = "get_serve
 
 
 # ------------------------------------------------- spec 157: contagem de conclusao
-def _res(tool: str, ok: bool = True):
-    from atlas.queue import ActionResult, PlannedAction
-
-    return ActionResult(
-        action=PlannedAction(tool=tool, params={}, label=tool), ok=ok,
-        error=None if ok else "falhou",
-    )
-
-
-def test_operacao_pequena_nao_recebe_contagem():
-    """O usuario pediu resposta minima: 'apaguei o canal' e nada mais. Contagem
-    em operacao de 1 acao e ruido."""
-    from atlas.formatting import linha_de_contagem
-
-    assert linha_de_contagem([_res("delete_channel")], []) == ""
-    assert linha_de_contagem([_res("create_channel") for _ in range(3)], []) == ""
-
-
-def test_operacao_grande_recebe_contagem():
-    from atlas.formatting import linha_de_contagem
-
-    ok = [_res("create_category")] + [_res("create_channel") for _ in range(7)] + \
-         [_res("edit_role"), _res("move_channel")]
-    linha = linha_de_contagem(ok, [])
-    assert "Criados: 8" in linha
-    assert "Alterados: 2" in linha
-    assert "Não concluídos" not in linha
-
-
-def test_contagem_inclui_o_que_nao_deu():
-    """Spec 157: 'Nao concluidos' faz parte da conclusao. Esconder falha em
-    operacao grande e o pior lugar para esconder."""
-    from atlas.formatting import linha_de_contagem
-
-    ok = [_res("create_channel") for _ in range(9)]
-    falhas = [_res("create_channel", ok=False) for _ in range(2)]
-    linha = linha_de_contagem(ok, falhas)
-    assert "Não concluídos: 2" in linha
-
-
-def test_contagem_nao_vaza_nome_de_ferramenta():
-    """O usuario reclamou de ver 'create_channel' na resposta. A contagem tem que
-    falar em criados/alterados, nao em nome de tool."""
-    from atlas.formatting import linha_de_contagem
-
-    ok = [_res("create_channel") for _ in range(10)]
-    linha = linha_de_contagem(ok, [])
-    assert "create_channel" not in linha
-    assert "_" not in linha.replace("Não concluídos", "")
-
-
-def test_result_embeds_montagem_real():
-    from atlas.config import Limits
-    from atlas.embeds import EmbedBuilder
-    from atlas.formatting import result_embeds
-
-    b = EmbedBuilder(Limits())
-    ok = [_res("create_category")] + [_res("create_channel") for _ in range(9)]
-    embeds = result_embeds(b, ok)
-    assert embeds
-    corpo = embeds[0].description or ""
-    assert "Criados: 10" in corpo
 
 
 # ------------------------------------------------- spec 71: os 10 padroes

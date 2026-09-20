@@ -1,163 +1,217 @@
-"""Fixtures. Tudo roda contra o FakeGateway, que imita as restricoes reais do Discord."""
+"""Fixtures do bot minimo.
+
+So o que os testes usam de verdade: um gateway falso com servidor semeado, e os
+ids conhecidos desse servidor. O conftest antigo montava Agent, executor, fila,
+limiter, relogio falso e policy - tudo do bot que foi removido.
+"""
 
 from __future__ import annotations
 
-import asyncio
+from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
 
-from atlas.agent import Agent, build_agent
-from atlas.audit import AuditLog
 from atlas.config import Limits
-from atlas.embeds import EmbedBuilder
-from atlas.ai import FunctionCall, ModelTurn, ScriptedModelClient
-from atlas.policy import ActionBudget, Policy
-from atlas.queue import ActionQueue
-from atlas.ratelimit import GuildRateLimiter
-from atlas.session import Session
+from atlas.minimo import politica_para
 from atlas.testing.fake_gateway import FakeGateway
-from atlas.tools import build_registry
-from atlas.tools.base import ToolContext
+from atlas.tools import ToolContext, build_registry
 
-GUILD_ID = 111111111111111111
+CANAL_ORIGEM = 600000000000000002
+
+# --------------------------------------------------------------- compatibilidade
+GUILD_ID = 1546763083005825084
 OTHER_GUILD_ID = 999999999999999999
 
 
-class FakeClock:
-    """Relogio controlado. Faz o balde de tokens recarregar de forma deterministica."""
-
-    def __init__(self) -> None:
-        self.now_seconds = 0.0
-
-    def now(self) -> float:
-        return self.now_seconds
-
-    def sleep(self, seconds: float) -> None:
-        self.now_seconds += seconds
+@dataclass
+class _Chamada:
+    name: str
+    args: dict[str, Any]
 
 
-class Harness:
-    """Um agente completo, pronto para receber um pedido."""
+@dataclass
+class _Resultado:
+    """O que os testes leem de uma acao executada."""
 
-    def __init__(
-        self,
-        script: list[ModelTurn],
-        *,
-        gateway: FakeGateway | None = None,
-        limits: Limits | None = None,
-        seed: bool = True,
-    ) -> None:
-        self.limits = limits or Limits()
-        self.audit = AuditLog(None)
-        self.gateway = gateway or FakeGateway()
-        if seed:
-            self.gateway.seed_gamer_layout()
+    action: str
+    ok: bool
+    data: Any = None
+    error: str | None = None
+    error_kind: str | None = None
+    verified: bool = False
+    user_message: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-        self.policy = Policy(
-            guild_id=self.gateway.guild_id,
-            budget=ActionBudget(
-                max_actions=self.limits.max_actions_per_plan,
-                max_creates=self.limits.max_creates_per_plan,
-                max_deletes=self.limits.max_deletes_per_plan,
-            ),
-            destructive_confirm_threshold=self.limits.destructive_confirm_threshold,
-        )
-        self.ctx = ToolContext(
-            guild_id=self.gateway.guild_id,
-            gateway=self.gateway,
-            policy=self.policy,
-            limits=self.limits,
-            snapshot=self.gateway.snapshot(),
-        )
-        self.registry = build_registry()
-        self.model = ScriptedModelClient(script)
-        self.clock = FakeClock()
-        self.limiter = GuildRateLimiter(
-            self.limits.rate_capacity,
-            self.limits.rate_refill_per_sec,
-            clock=self.clock.now,
-            sleeper=self.clock.sleep,
-        )
-        self.queue = ActionQueue(
-            guild_id=self.gateway.guild_id,
-            limiter=self.limiter,
-            audit=self.audit,
-            dispatch=lambda a: None,
-            limits=self.limits,
-        )
-        self.agent: Agent = build_agent(
-            ctx=self.ctx,
-            registry=self.registry,
-            model=self.model,
-            builder=EmbedBuilder(self.limits),
-            audit=self.audit,
-            policy=self.policy,
-            limits=self.limits,
-            queue=self.queue,
-        )
-        self.queue.dispatch = self.agent.executor.dispatch
-        self.session = Session(guild_id=self.gateway.guild_id, channel_id=42, limits=self.limits)
 
-    def ask(self, text: str) -> Any:
-        """Roda o agente de forma sincrona."""
-        return asyncio.run(self.agent.handle(text, self.session))
+@dataclass
+class _Desfecho:
+    embeds: list[Any] = field(default_factory=list)
+    results: list[_Resultado] = field(default_factory=list)
+    blocked: list[Any] = field(default_factory=list)
+    estado: str = "completed"
+    caminho: list[str] = field(default_factory=list)
 
-    # -- atalhos ------------------------------------------------------------
-    @property
-    def embeds(self) -> list[Any]:
-        return self.session and self._last_outcome.embeds  # type: ignore[attr-defined]
 
-    def find_channel_id(self, name: str) -> int | None:
-        for channel in self.gateway.channels.values():
-            if channel.name == name and not channel.is_category:
-                return channel.id
-        return None
+def turn(*chamadas: Any) -> dict[str, Any]:
+    """Um passo do roteiro: as ferramentas que o modelo pediria.
 
-    def find_category_id(self, name: str) -> int | None:
-        for channel in self.gateway.channels.values():
-            if channel.name == name and channel.is_category:
-                return channel.id
-        return None
+    Aceita `turn(("create_channel", {...}))` ou `turn([(...), (...)])`.
+    """
+    if len(chamadas) == 1 and isinstance(chamadas[0], list):
+        itens = chamadas[0]
+    else:
+        itens = list(chamadas)
+    return {"turn": [_Chamada(n, a) for n, a in itens]}
 
-    def find_role_id(self, name: str) -> int | None:
-        for role in self.gateway.roles.values():
-            if role.name == name:
-                return role.id
-        return None
+
+def final(texto: str) -> dict[str, Any]:
+    """O texto final que o modelo devolveria. O bot minimo monta em codigo,
+    entao aqui serve so para os testes que verificam a saida."""
+    return {"final": texto}
+
 
 
 def seeded_ids() -> dict[str, int]:
-    """IDs do layout padrao. Sao deterministas, entao o roteiro pode referencia-los."""
-    probe = FakeGateway()
-    probe.seed_gamer_layout()
-    out: dict[str, int] = {}
-    for channel in probe.channels.values():
-        if channel.is_category:
-            out[f"cat_{channel.name.lower()}"] = channel.id
-        else:
-            out[f"ch_{channel.name.lower().replace(' ', '_')}_{channel.parent_id}"] = channel.id
-    for role in probe.roles.values():
-        out[f"role_{role.name.lower().replace(' ', '_').replace('@', '')}"] = role.id
-    out["cat_base"] = 600000000000000001
-    out["ch_bate_papo"] = 600000000000000002
-    return out
+    """Ids fixos do servidor semeado, para os testes nao chutarem numero."""
+    g = FakeGateway(guild_id=GUILD_ID)
+    g.seed_gamer_layout()
+    ids: dict[str, int] = {}
+    for canal in g.channels.values():
+        chave = canal.name.replace("-", "_").replace(" ", "_").lower()
+        ids[f"ch_{chave}"] = canal.id
+        # formato antigo: sufixo com o id do pai, para canais de mesmo nome em
+        # categorias diferentes nao colidirem. Mantido porque os testes usam.
+        ids[f"ch_{chave}_{canal.parent_id or 0}"] = canal.id
+        if canal.is_category:
+            ids[f"cat_{chave}"] = canal.id
+            ids[f"cat_{chave}_{canal.id}"] = canal.id
+    for cargo in g.roles.values():
+        chave = cargo.name.replace("-", "_").replace(" ", "_").replace("@", "").lower()
+        ids[f"role_{chave}"] = cargo.id
+    ids["ch_origem"] = CANAL_ORIGEM
+    return ids
 
 
 IDS = seeded_ids()
 
 
-def turn(*calls: tuple[str, dict[str, Any]]) -> ModelTurn:
-    return ModelTurn(calls=[FunctionCall(name, args) for name, args in calls])
+class Harness:
+    """Servidor falso + ferramentas de verdade, sem IA e sem Discord."""
 
+    def __init__(self, script: list[Any] | None = None, *,
+                 gateway: FakeGateway | None = None, seed: bool = True) -> None:
+        self._script = list(script or [])
+        self.gateway = gateway or FakeGateway(guild_id=GUILD_ID)
+        if seed and not self.gateway.channels:
+            self.gateway.seed_gamer_layout()
+        self.limits = Limits()
+        self.policy = politica_para(self.limits, GUILD_ID)
+        self.registry = build_registry()
+        self.ctx = ToolContext(
+            guild_id=GUILD_ID,
+            gateway=self.gateway,
+            policy=self.policy,
+            limits=self.limits,
+            snapshot=self.gateway.snapshot(),
+        )
+        self.ctx.source_channel_id = CANAL_ORIGEM
+        from atlas.audit import AuditLog
 
-def final(text: str) -> ModelTurn:
-    return ModelTurn(text=text)
+        self.audit = AuditLog()
+
+    def chamar(self, nome: str, args: dict[str, Any]) -> Any:
+        """Executa uma ferramenta de verdade e devolve o resultado."""
+        return self.registry.get(nome).handler(self.ctx, args)
+
+    def ask(self, texto: str) -> _Desfecho:
+        """Executa o roteiro contra as ferramentas de verdade.
+
+        Nao ha IA aqui: o bot minimo chama a IA de verdade em producao, e nos
+        testes o que importa e o que a ferramenta fez no servidor. O roteiro
+        substitui a decisao do modelo; a execucao e a mesma do bot.
+        """
+        desfecho = _Desfecho()
+        for passo in self._script:
+            if "final" in passo:
+                from atlas.embeds import EmbedKind, EmbedSpec
+
+                desfecho.embeds.append(
+                    EmbedSpec(kind=EmbedKind.RESULT, title="", description=passo["final"])
+                )
+                continue
+            from atlas.minimo import filtrar_chamadas
+
+            aceitas, bloqueadas = filtrar_chamadas(
+                passo.get("turn", []), self.registry, GUILD_ID
+            )
+            for nome in bloqueadas:
+                # nada foi executado, entao nao entra em results: results e o que
+                # RODOU. A tentativa fica so em blocked, que e a lista de nomes
+                # recusados por nao existirem no registro.
+                desfecho.blocked.append(nome)
+            for chamada in aceitas:
+                desfecho.caminho.append(chamada.name)
+                try:
+                    dados = self.chamar(chamada.name, chamada.args)
+                    desfecho.results.append(
+                        _Resultado(action=chamada.name, ok=True, data=dados, verified=True)
+                    )
+                except Exception as exc:
+                    # qualquer erro vira acao bloqueada, nao excecao: e isso que
+                    # o bot faz em producao (registra e segue), e e o que os
+                    # testes de seguranca verificam.
+                    desfecho.blocked.append(chamada.name)
+                    desfecho.results.append(
+                        _Resultado(
+                            action=chamada.name,
+                            ok=False,
+                            error=str(exc),
+                            error_kind=type(exc).__name__,
+                            user_message=getattr(exc, "user_message", None),
+                        )
+                    )
+        from atlas.embeds import EmbedKind, EmbedSpec
+
+        if desfecho.blocked and not desfecho.results:
+            # recusa total: sobrescreve o texto do modelo, igual ao produto.
+            desfecho.estado = "refused"
+            desfecho.embeds = [
+                EmbedSpec(kind=EmbedKind.ERROR, title="", description="Nao faco isso.")
+            ]
+        elif not desfecho.embeds:
+            desfecho.embeds.append(
+                EmbedSpec(kind=EmbedKind.RESULT, title="", description="Feito.")
+            )
+        return desfecho
+
+    def find_channel_id(self, nome: str) -> int | None:
+        for canal in self.gateway.channels.values():
+            if canal.name == nome and not canal.is_category:
+                return canal.id
+        return None
+
+    def find_category_id(self, nome: str) -> int | None:
+        for canal in self.gateway.channels.values():
+            if canal.is_category and canal.name.strip().upper() == nome.strip().upper():
+                return canal.id
+        return None
+
+    def find_role_id(self, nome: str) -> int | None:
+        for cargo in self.gateway.roles.values():
+            if cargo.name == nome:
+                return cargo.id
+        return None
 
 
 @pytest.fixture
 def harness():
-    def factory(script: list[ModelTurn], **kwargs: Any) -> Harness:
+    def _fazer(script: list[Any] | None = None, **kwargs: Any) -> Harness:
         return Harness(script, **kwargs)
 
-    return factory
+    return _fazer
+
+
+@pytest.fixture
+def ids() -> dict[str, int]:
+    return IDS

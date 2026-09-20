@@ -1,156 +1,71 @@
-#!/usr/bin/env python3
-"""Ponto de entrada.
+"""Ponto de entrada do Atlas.
 
-    python main.py            # inicia o bot
-    python main.py --check    # valida configuracao e sai
-    python main.py --health   # re-testa o pool de IA e imprime o painel
-    python main.py --demo     # roda o agente contra um servidor simulado
+    python main.py            sobe o bot
+    python main.py --health   testa o pool de IA e sai
+
+O bot e o `atlas.minimo`: uma chamada de IA por mensagem, resposta montada em
+codigo. O bot antigo (agent + bot + executor + design_system + 25 modulos de
+apoio) foi removido porque fazia 4 voltas de IA para criar 1 canal.
 """
 
 from __future__ import annotations
 
 import argparse
-import asyncio
 import sys
 
 from atlas.audit import setup_logging
-from atlas.bot import run as run_bot
 from atlas.config import ConfigError, load_settings
-from atlas.demo import run_demo
 
 
-def _ler_auditoria_do_disco(caminho) -> list[dict]:
-    """Le o JSONL do disco: cada run do Actions e um processo novo, entao a
-    memoria vem vazia e o historico real so existe no arquivo."""
-    import json
-    from pathlib import Path
+def _health() -> int:
+    """Sonda o pool de IA gratuito e mostra o que responde agora."""
+    import logging
 
-    caminho = Path(caminho)
-    if not caminho.exists():
-        return []
-    saida = []
-    for linha in caminho.read_text(encoding="utf-8").splitlines():
-        linha = linha.strip()
-        if not linha:
-            continue
-        try:
-            saida.append(json.loads(linha))
-        except json.JSONDecodeError:
-            continue
-    return saida
+    logging.disable(logging.WARNING)
+    from atlas.ai.discovery import probe_rota
+    from atlas.ai.providers import CATALOG
+
+    ok = 0
+    total = 0
+    for gateway in CATALOG:
+        for modelo in gateway.models:
+            total += 1
+            try:
+                resultado = probe_rota(gateway, modelo.model)
+                estado = resultado.status.value
+            except Exception as exc:
+                estado = f"ERRO {type(exc).__name__}"
+            if estado == "OK":
+                ok += 1
+            print(f"  {gateway.key}/{modelo.model:34} {estado}")
+    print(f"\n  respondendo: {ok}/{total}")
+    return 0 if ok else 1
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Atlas - agente de configuracao de servidores Discord")
-    parser.add_argument("--check", action="store_true", help="valida configuracao e sai")
-    parser.add_argument("--health", action="store_true", help="re-testa o pool de IA e imprime o painel")
-    parser.add_argument(
-        "--painel", action="store_true",
-        help="painel agregado: o que aconteceu, onde falhou, o que agora (sem gastar cota de IA)",
-    )
-    parser.add_argument("--health-pausa", type=float, default=1.0, help="pausa entre sondas do --health")
-    parser.add_argument(
-        "--pool",
-        action="store_true",
-        help="lista o pool de IA do catalogo, sem sondar (nao consome cota)",
-    )
-    parser.add_argument("--demo", action="store_true", help="roda contra servidor simulado, sem Discord")
-    parser.add_argument("--demo-text", default=None, help="pedido a usar no modo demo")
+    parser = argparse.ArgumentParser(prog="atlas")
+    parser.add_argument("--health", action="store_true", help="testa o pool de IA e sai")
     args = parser.parse_args()
 
-    if args.demo:
-        audit = setup_logging(audit_path=None)
-        return asyncio.run(run_demo(audit, text=args.demo_text))
+    if args.health:
+        return _health()
 
+    setup_logging()
     try:
-        settings = load_settings(require_secrets=False)
+        settings = load_settings()
     except ConfigError as exc:
-        print(f"[config] {exc}", file=sys.stderr)
+        print(f"configuracao invalida: {exc}", file=sys.stderr)
         return 2
 
-    audit = setup_logging(audit_path=settings.audit_path)
+    import asyncio
 
-    if args.painel:
-        # Nao re-sonda o pool de proposito: --health queima cota e leva 138s.
-        # O painel tem que ser barato para poder rodar em toda run do Actions.
-        from atlas.observability import formatar_painel_geral, resumo_auditoria
+    from atlas.minimo import montar
 
-        registros = audit.records or _ler_auditoria_do_disco(settings.audit_path)
-        print(formatar_painel_geral(resumo_auditoria(registros)))
+    bot = montar(settings=settings)
+    try:
+        asyncio.run(bot.start(settings.discord_token))
+    except KeyboardInterrupt:
         return 0
-
-    if args.pool:
-        from atlas.ai import build_catalog
-        from atlas.ai.providers import catalog_summary
-
-        catalogo = build_catalog(settings)
-        resumo = catalog_summary(catalogo)
-        print(
-            f"[pool] {resumo['gateways']} gateways, {resumo['rotas']} rotas "
-            f"({', '.join(resumo['ids']) or 'nenhum'})"
-        )
-        for gw in catalogo:
-            nomes = ", ".join(r.model for r in gw.models)
-            acesso = "sem chave" if gw.access is gw.access.NO_AUTH else "exige chave"
-            print(f"  - {gw.id:<8} rpm={gw.rpm} conc={gw.concurrency} {acesso} :: {nomes}")
-        if resumo["rotas"] == 0:
-            print("[pool] NENHUMA rota disponivel - o bot vai falhar na primeira chamada.")
-            return 3
-        return 0
-
-    if args.health:
-        from atlas.ai import build_catalog, formatar_painel
-        from atlas.ai.discovery import reavaliar, resumo_probes
-        from atlas.ai.providers import catalog_summary
-        from atlas.ai.router import Router
-        from atlas.ai.stats import PoolStats
-
-        catalogo = build_catalog(settings)
-        print(f"re-testando {sum(len(g.models) for g in catalogo)} rotas em "
-              f"{len(catalogo)} gateways...\n")
-
-        def mostrar(r):
-            marca = "OK " if r.utilizavel else "   "
-            lat = f"{r.latency_ms}ms" if r.latency_ms else "-"
-            print(f"  {marca} {r.route:<52} {r.status:<16} {lat}")
-            if r.detail:
-                print(f"        {r.detail}")
-
-        registry, resultados = reavaliar(catalogo, pausa=args.health_pausa, on_result=mostrar)
-        router = Router(catalogo, health=registry, stats=PoolStats())
-        print()
-        print(formatar_painel(router.stats, registry.snapshot(), catalog_summary(catalogo)))
-        r = resumo_probes(resultados)
-        print(f"\nutilizaveis agora: {r['utilizaveis']}/{r['testadas']}  {r['por_status']}")
-        return 0 if r["utilizaveis"] else 3
-
-    if args.check:
-        faltando = settings.missing()
-        print("[config] variaveis:")
-        for key, value in settings.describe().items():
-            print(f"  {key}: {value}")
-        if faltando:
-            print("\n[config] FALTANDO: " + ", ".join(faltando))
-            print("           Preencha no .env (veja .env.example). Nenhuma credencial e inventada aqui.")
-            return 2
-        print("\n[config] OK - tudo preenchido")
-        return 0
-
-    if not settings.discord_token:
-        raise RuntimeError("Falta DISCORD_TOKEN no .env - sem ele o bot nao conecta.")
-
-    from atlas.ai import build_catalog
-
-    catalogo = build_catalog(settings)
-    rotas = sum(len(g.models) for g in catalogo)
-    print(f"[config] pool de IA: {len(catalogo)} gateways, {rotas} rotas "
-          f"({', '.join(g.id for g in catalogo)})")
-    if settings.usuario_configurou_ia:
-        print(f"[config] gateway do .env na frente: {settings.ai_base_url} "
-              f"modelos={settings.ai_model}")
-    print("[config] chave: " + ("configurada" if settings.ai_api_key else "nao necessaria (pool anonimo)"))
-
-    run_bot(settings, audit)
     return 0
 
 

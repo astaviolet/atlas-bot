@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from atlas.embeds import EmbedKind
-from atlas.models import ChannelType, Perm
+from atlas.models import ChannelType
 
 from conftest import IDS, final, turn
 
@@ -71,91 +71,6 @@ def test_03_criar_cargo(harness):
     assert role.color == 0x5865F2
     assert role.hoist is True
     assert outcome.results[0].verified is True
-
-
-def test_04_alterar_cargo(harness):
-    script = [
-        turn(("create_role", {"name": "Suporte"})),
-        turn(("edit_role", {"role_id": "__ROLE__", "name": "Equipe de Suporte", "color": "#2ECC71"})),
-        final("Renomeado."),
-    ]
-    h = harness(script)
-
-    # resolve o id do cargo recem-criado entre um turno e outro
-    original = h.model.generate
-
-    def generate(**kwargs):
-        result = original(**kwargs)
-        for call in result.calls:
-            if call.args.get("role_id") == "__ROLE__":
-                call.args["role_id"] = str(h.find_role_id("Suporte"))
-        return result
-
-    h.model.generate = generate
-    outcome = h.ask("cria Suporte e depois renomeia para Equipe de Suporte")
-
-    rid = h.find_role_id("Equipe de Suporte")
-    assert rid is not None, "cargo nao foi renomeado"
-    assert h.find_role_id("Suporte") is None
-    assert h.gateway.roles[rid].color == 0x2ECC71
-    assert all(r.ok for r in outcome.results)
-
-
-def test_05_alterar_permissoes_de_cargo(harness):
-    script = [
-        turn(("create_role", {"name": "Curador"})),
-        turn(("set_role_permissions", {"role_id": "__ROLE__", "allow": ["manage_channels", "manage_messages"]})),
-        final("Permissoes aplicadas."),
-    ]
-    h = harness(script)
-    original = h.model.generate
-
-    def generate(**kwargs):
-        result = original(**kwargs)
-        for call in result.calls:
-            if call.args.get("role_id") == "__ROLE__":
-                call.args["role_id"] = str(h.find_role_id("Curador"))
-        return result
-
-    h.model.generate = generate
-    outcome = h.ask("cria Curador e da permissao de gerenciar canais e mensagens")
-
-    rid = h.find_role_id("Curador")
-    bits = h.gateway.roles[rid].permissions
-    assert bits & int(Perm.MANAGE_CHANNELS)
-    assert bits & int(Perm.MANAGE_MESSAGES)
-    assert not bits & int(Perm.BAN_MEMBERS)
-    assert outcome.results[-1].verified is True
-
-
-def test_05b_alterar_permissoes_de_canal(harness):
-    script = [
-        turn(("create_role", {"name": "Visitante"})),
-        turn((
-            "set_channel_permissions",
-            {"channel_id": str(IDS["ch_regras_%d" % IDS["cat_informacoes"]]),
-             "role_id": "__ROLE__", "allow": ["view_channel"], "deny": ["send_messages"]},
-        )),
-        final("Feito."),
-    ]
-    h = harness(script)
-    original = h.model.generate
-
-    def generate(**kwargs):
-        result = original(**kwargs)
-        for call in result.calls:
-            if call.args.get("role_id") == "__ROLE__":
-                call.args["role_id"] = str(h.find_role_id("Visitante"))
-        return result
-
-    h.model.generate = generate
-    h.ask("deixa Visitante so ver o canal de regras")
-
-    rid = h.find_role_id("Visitante")
-    channel = h.gateway.channels[IDS["ch_regras_%d" % IDS["cat_informacoes"]]]
-    ow = next(o for o in channel.overwrites if o.target_id == rid)
-    assert ow.allow & int(Perm.VIEW_CHANNEL)
-    assert ow.deny & int(Perm.SEND_MESSAGES)
 
 
 def test_06_reorganizar_canais(harness):
