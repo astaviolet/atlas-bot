@@ -48,6 +48,23 @@ def _create_role(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     require_bot_permission(ctx.snapshot, Perm.MANAGE_ROLES, what="criar cargo")
     name = _clean_name(params.get("name"), ctx)
 
+    # @everyone nao se cria: e o cargo padrao, sempre existe, e nao pode ser
+    # excluido. Sem isto o pedido viraria um segundo cargo com o mesmo nome.
+    if name.casefold() in {"@everyone", "everyone"}:
+        raise ToolError(
+            "everyone nao se cria",
+            user_message="@everyone ja existe por padrao e nao da para criar outro.",
+        )
+
+    # Idempotencia (spec 13/178): mesmo nome = mesmo cargo, nao um segundo.
+    for existente in ctx.snapshot.roles:
+        if existente.name.casefold() == name.casefold():
+            return {
+                "created": existente.to_dict(),
+                "reused": True,
+                "note": "ja existia um cargo com esse nome; nao criei outro",
+            }
+
     if len(ctx.snapshot.roles) >= ctx.limits.max_role_count:
         raise ToolError(
             "limite de cargos",

@@ -100,6 +100,24 @@ def _create_channel(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     if nsfw and ctype == ChannelType.GUILD_VOICE:
         raise ToolError("voz nao aceita nsfw", user_message="Canal de voz nao pode ser marcado como NSFW.")
 
+    # Idempotencia (spec 13/178): pedir duas vezes o mesmo canal nao pode
+    # produzir dois canais. Medido em producao antes disto: um pedido de design
+    # criou "regras" e "anuncios" duas vezes porque o servidor ja os tinha.
+    # Casamento exige nome + tipo + mesma categoria: "geral" de texto e "geral"
+    # de voz sao coisas diferentes, e o mesmo nome em outra categoria tambem.
+    for existente in ctx.snapshot.channels:
+        if (
+            not existente.is_category
+            and existente.name == name
+            and existente.type == ctype
+            and existente.parent_id == parent_id
+        ):
+            return {
+                "created": existente.to_dict(),
+                "reused": True,
+                "note": "ja existia um canal igual; nao criei outro",
+            }
+
     siblings = [c for c in ctx.snapshot.channels if c.parent_id == parent_id and not c.is_category]
     if len(siblings) >= ctx.limits.max_channels_per_category:
         raise ToolError(
@@ -189,6 +207,17 @@ def _verify_delete_channel(ctx: ToolContext, params: dict[str, Any], data: Any) 
 def _create_category(ctx: ToolContext, params: dict[str, Any]) -> dict[str, Any]:
     require_bot_permission(ctx.snapshot, Perm.MANAGE_CHANNELS, what="criar categoria")
     name = _clean_name(params.get("name"), ctx)
+
+    # Categoria no Discord e sempre MAIUSCULA; comparar sem diferenciar caixa
+    # evita criar "COMUNIDADE" quando ja existe "comunidade".
+    for existente in ctx.snapshot.channels:
+        if existente.is_category and existente.name.casefold() == name.casefold():
+            return {
+                "created": existente.to_dict(),
+                "reused": True,
+                "note": "ja existia uma categoria com esse nome; nao criei outra",
+            }
+
     category = ctx.gateway.create_category(name=name)
     return {"created": category.to_dict()}
 

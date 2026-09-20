@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from atlas.embeds import EmbedKind
 from atlas.models import ChannelType, Perm
 
@@ -236,3 +238,109 @@ def test_09b_excluir_categoria_nao_apaga_filhos(harness):
         for cid in (IDS["ch_sala_geral_%d" % IDS["cat_voz"]], IDS["ch_afk_%d" % IDS["cat_voz"]]):
             assert cid in h.gateway.channels, "filho foi apagado junto, nao e o comportamento do Discord"
             assert h.gateway.channels[cid].parent_id is None
+
+
+# ------------------------------------------------ Fase 3: idempotencia (spec 13/178)
+def _contar(h, nome, categoria=False):
+    return sum(
+        1 for c in h.gateway.channels.values()
+        if c.name.casefold() == nome.casefold() and c.is_category == categoria
+    )
+
+
+def test_178_categoria_pedida_duas_vezes_nao_duplica(harness):
+    """Spec 178 literal: pedir 'crie categoria comunidade' duas vezes."""
+    h = harness([
+        turn(("create_category", {"name": "comunidade"})),
+        final("criada"),
+    ])
+    h.ask("crie categoria comunidade")
+    assert _contar(h, "comunidade", categoria=True) == 1
+
+    h2 = harness([
+        turn(("create_category", {"name": "comunidade"})),
+        final("criada"),
+    ], gateway=h.gateway, seed=False)
+    out = h2.ask("crie categoria comunidade de novo")
+
+    assert _contar(h2, "comunidade", categoria=True) == 1, "criou categoria duplicada"
+    assert out.results[0].data.get("reused") is True, "tem que avisar que reusou"
+
+
+def test_categoria_existente_com_outra_caixa_nao_duplica(harness):
+    """Discord guarda categoria em MAIUSCULA; 'comunidade' nao pode virar outra."""
+    h = harness([turn(("create_category", {"name": "Staff"})), final("ok")])
+    h.ask("cria categoria Staff")
+    h2 = harness([turn(("create_category", {"name": "staff"})), final("ok")],
+                 gateway=h.gateway, seed=False)
+    h2.ask("cria categoria staff")
+    assert _contar(h2, "staff", categoria=True) == 1
+
+
+def test_canal_duplicado_nao_e_criado(harness):
+    h = harness([
+        turn(("create_channel", {"name": "avisos", "type": "text",
+                                 "category_id": str(IDS["cat_informacoes"])})),
+        final("ok"),
+    ])
+    h.ask("cria canal avisos")
+    antes = _contar(h, "avisos")
+
+    h2 = harness([
+        turn(("create_channel", {"name": "avisos", "type": "text",
+                                 "category_id": str(IDS["cat_informacoes"])})),
+        final("ok"),
+    ], gateway=h.gateway, seed=False)
+    out = h2.ask("cria canal avisos de novo")
+
+    assert _contar(h2, "avisos") == antes == 1, "duplicou o canal"
+    assert out.results[0].data.get("reused") is True
+
+
+def test_mesmo_nome_tipo_diferente_cria_os_dois(harness):
+    """Guarda contra casamento agressivo: 'geral' texto e 'geral' voz sao dois."""
+    h = harness([
+        turn(("create_channel", {"name": "geral", "type": "text"}),
+             ("create_channel", {"name": "geral", "type": "voice"})),
+        final("ok"),
+    ])
+    h.ask("cria geral de texto e de voz")
+    tipos = sorted(c.type for c in h.gateway.channels.values() if c.name == "geral")
+    assert tipos == [ChannelType.GUILD_TEXT, ChannelType.GUILD_VOICE], tipos
+
+
+def test_mesmo_nome_categoria_diferente_cria_os_dois(harness):
+    h = harness([
+        turn(("create_channel", {"name": "regras", "type": "text",
+                                 "category_id": str(IDS["cat_informacoes"])}),
+             ("create_channel", {"name": "regras", "type": "text",
+                                 "category_id": str(IDS["cat_comunidade"])})),
+        final("ok"),
+    ])
+    h.ask("cria regras nas duas categorias")
+    assert _contar(h, "regras") >= 2, "bloqeu nome igual em categorias diferentes"
+
+
+def test_cargo_duplicado_nao_e_criado(harness):
+    h = harness([turn(("create_role", {"name": "Moderador"})), final("ok")], seed=False)
+    h.ask("cria cargo Moderador")
+    h2 = harness([turn(("create_role", {"name": "moderador"})), final("ok")],
+                 gateway=h.gateway, seed=False)
+    out = h2.ask("cria cargo moderador")
+    nomes = [r.name for r in h2.gateway.snapshot().roles]
+    assert nomes.count("Moderador") + nomes.count("moderador") == 1, nomes
+    assert out.results[0].data.get("reused") is True
+
+
+def test_criar_cargo_everyone_e_recusado(harness):
+    """@everyone e o cargo padrao: nao se cria outro com o mesmo nome."""
+    from atlas.errors import ToolError
+
+    h = harness([], seed=False)
+    reg = h.registry
+    with pytest.raises(ToolError) as exc:
+        reg.get("create_role").handler(h.ctx, {"name": "@everyone"})
+    assert "everyone" in exc.value.user_message.lower()
+    # nada foi criado: o unico @everyone e o padrao que ja veio com o servidor
+    nomes = [r.name for r in h.gateway.snapshot().roles]
+    assert nomes.count("@everyone") == 1, nomes
