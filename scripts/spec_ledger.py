@@ -90,6 +90,8 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     178: (PRONTA, "tests/test_tools_basic.py", "não cria duas categorias"),
     180: (PRONTA, "tests/test_batch.py", "falha parcial: estado, logs e resposta"),
     68: (PRONTA, "tests/test_observability.py", "resumo conta ok e falha, separa guilds, aguenta linha corrompida"),
+    31: (PRONTA, "tests/test_catalogo.py", "nenhuma marca, convite ou nome proprietário entra no design nem no catálogo; tema vira vocabulário genérico, não identidade copiada"),
+    116: (PRONTA, "tests/test_catalogo.py", "pedido simples não dispara probe nem pesquisa; satisfeito por ausência e travado por teste"),
     71: (PRONTA, "tests/test_embeds.py", "os 10 padrões da spec existem (5 foram acrescentados agora: PERMISSION_ERROR, POLICY_DENIED, PARTIAL_SUCCESS, IN_PROGRESS, RATE_LIMITED) + Components V2 (flags 32768)"),
     72: (PRONTA, "tests/test_embeds.py", "cartão V2 também passa pela limpeza; o modelo dá o texto, o código monta"),
     120: (PRONTA, "tests/test_observability.py", "as três perguntas apontam a falha"),
@@ -135,12 +137,12 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
     127: (PRONTA, "tests/test_policy.py", "tools modulares: channels.py, roles.py, server.py, read.py — registry recusa ferramenta proibida"),
     153: (PRONTA, "tests/test_errors.py", "verificação pós-ação compara com o Discord e detecta mudança que não aconteceu"),
     154: (PRONTA, "tests/test_wiring.py", "verificar exclusão usa retry — o Discord pode não refletir na hora"),
-    117: (FORA, "decisão", "cache de pesquisa: não há pesquisa na web — 21 tools fixas, todas de Discord"),
-    118: (FORA, "decisão", "qualidade das fontes: não há fonte externa sendo consumida"),
-    141: (FORA, "decisão", "pesquisa contínua de design: fora de escopo (sem busca na web)"),
-    142: (FORA, "decisão", "pesquisa contínua de tecnologia: fora de escopo"),
-    143: (FORA, "decisão", "pesquisa contínua de IA: o pool é reavaliado por probe, mas descobrir provedor novo na web está fora"),
-    184: (FORA, "decisão", "regra final de pesquisa: depende de acesso legítimo a busca, que não existe neste projeto"),
+    117: (FORA, "decisão", "o catálogo persiste padrões mas NÃO tem TTL nem normalização de query, que é o que a seção pede"),
+    118: (FORA, "decisão", "o catálogo tem Confianca e fonte, mas não avalia licença nem atualidade por data — cobre parte, não a seção inteira"),
+    141: (FORA, "decisão", "não há pesquisa contínua de design em runtime; padrões vêm do catálogo, atualizado à mão com fonte"),
+    142: (FORA, "decisão", "não há pesquisa contínua de tecnologia em runtime"),
+    143: (FORA, "decisão", "o pool é reavaliado por probe; descobrir provedor NOVO na web exige busca, que não está configurada"),
+    184: (FORA, "decisão", "a regra vale para quem desenvolve e foi seguida (pesquisa offline, fonte registrada, teste), mas o SISTEMA não pesquisa sozinho"),
     97: (PRONTA, "tests/", "suíte de testes unitários: planners, validadores, schemas, routing, permissões, parsers, tools"),
     98: (PRONTA, "tests/test_wiring.py", "agente → tool → executor → gateway em ambiente controlado"),
     99: (PRONTA, "tests/test_wiring.py", "fluxo completo: pedido → plano → tools → verificação → resposta"),
@@ -236,12 +238,10 @@ _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
 
 #: Seções deliberadamente fora, com o motivo. Não é "esqueci": é decisão.
 _FORA: dict[int, str] = {
-    28: "pesquisa na web: 21 tools fixas, todas de operação no Discord",
-    29: "pesquisa na web",
-    30: "pesquisa na web",
-    31: "pesquisa na web",
-    75: "pesquisa na web",
-    116: "verificada como satisfeita por ausência: nada atrasa pedido simples",
+    28: "pesquisa em runtime não configurada — o bot não tem busca em runtime (nenhum provedor do pool gratuito oferece search e inventar credencial é proibido); a pesquisa foi feita offline e codificada no catálogo com fonte",
+    29: "tema entra por vocabulário no design_system; pesquisa em runtime não configurada",
+    30: "arquitetura vem de dominio × porte × publico × estilo, não de busca",
+    75: "não há pesquisa em runtime para ser contínua; o pool é reavaliado por probe, que é outra coisa",
 }
 
 

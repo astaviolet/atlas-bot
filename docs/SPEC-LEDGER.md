@@ -36,10 +36,10 @@ Seções na spec: **188**
 | 25 | AUTO-CORREÇÃO | PRONTA | `tests/test_autofix.py` | auto-correção antes de falhar |
 | 26 | SISTEMA DE DESIGN DE SERVIDORES | PRONTA | `tests/test_design_system.py` | composição domínio x porte x público x estilo |
 | 27 | DESIGN NÃO-GENÉRICO | PRONTA | `tests/test_design_system.py` | domínios diferentes dão estruturas diferentes |
-| 28 | PESQUISA DE REFERÊNCIAS | FORA DE ESCOPO | `decisão` | pesquisa na web: 21 tools fixas, todas de operação no Discord |
-| 29 | PESQUISA POR TEMA | FORA DE ESCOPO | `decisão` | pesquisa na web |
-| 30 | PESQUISA POR ARQUITETURA | FORA DE ESCOPO | `decisão` | pesquisa na web |
-| 31 | NÃO COPIAR SERVIDORES | FORA DE ESCOPO | `decisão` | pesquisa na web |
+| 28 | PESQUISA DE REFERÊNCIAS | FORA DE ESCOPO | `decisão` | pesquisa em runtime não configurada — o bot não tem busca em runtime (nenhum provedor do pool gratuito oferece search e inventar credencial é proibido); a pesquisa foi feita offline e codificada no catálogo com fonte |
+| 29 | PESQUISA POR TEMA | FORA DE ESCOPO | `decisão` | tema entra por vocabulário no design_system; pesquisa em runtime não configurada |
+| 30 | PESQUISA POR ARQUITETURA | FORA DE ESCOPO | `decisão` | arquitetura vem de dominio × porte × publico × estilo, não de busca |
+| 31 | NÃO COPIAR SERVIDORES | PRONTA | `tests/test_catalogo.py` | nenhuma marca, convite ou nome proprietário entra no design nem no catálogo; tema vira vocabulário genérico, não identidade copiada |
 | 32 | CATÁLOGO DE PADRÕES | PRONTA | `tests/test_catalogo.py` | pesquisa feita: 7 padrões com fonte real (memvers, space-node, peakbot, siift, noriaflow) em MEDIUM; o que a pesquisa não cobriu segue UNKNOWN e um teste trava isso |
 | 33 | EVOLUÇÃO DO CATÁLOGO | PRONTA | `tests/test_catalogo.py` | armazena princípios, não templates; cresce por feedback |
 | 34 | IDENTIDADE TEMÁTICA | PRONTA | `tests/test_design_system.py` | canais_do_tema acrescenta canal em código (zero build, survival, facções), com teto de 2 e sem entrar em porte pequeno |
@@ -83,7 +83,7 @@ Seções na spec: **188**
 | 72 | UI CONTROLADA PELO CÓDIGO | PRONTA | `tests/test_embeds.py` | cartão V2 também passa pela limpeza; o modelo dá o texto, o código monta |
 | 73 | BOTÕES | PRONTA | `tests/test_botoes.py` | as sete barreiras do clique |
 | 74 | ERROS | PRONTA | `tests/test_errors.py` | erro de permissão e erro da API viram mensagem útil |
-| 75 | PESQUISA CONTÍNUA | FORA DE ESCOPO | `decisão` | pesquisa na web |
+| 75 | PESQUISA CONTÍNUA | FORA DE ESCOPO | `decisão` | não há pesquisa em runtime para ser contínua; o pool é reavaliado por probe, que é outra coisa |
 | 76 | APRENDIZADO | PRONTA | `tests/test_catalogo.py` | padrão é classificado por confiança e revisado por feedback; nada entra como verdade automática |
 | 77 | LICENÇAS | FORA DE ESCOPO | `decisão` | nenhum código externo foi incorporado; dependências são discord.py e openai, ambas Apache/MIT |
 | 78 | SISTEMA DE TEMPLATES | PRONTA | `tests/test_design_system.py` | tema sozinho não muda a estrutura |
@@ -124,9 +124,9 @@ Seções na spec: **188**
 | 113 | ESTADO DO AGENTE | PRONTA | `tests/test_estados.py` | estados do agente |
 | 114 | CANCELAMENTO E CONFLITOS | PRONTA | `tests/test_wiring.py` | guild travado devolve guild_busy em vez de misturar planos; trava liberada mesmo com exceção |
 | 115 | PRIORIDADE | PRONTA | `tests/test_classificacao.py` | prioridade de rota |
-| 116 | BACKGROUND DISCOVERY | FORA DE ESCOPO | `decisão` | verificada como satisfeita por ausência: nada atrasa pedido simples |
-| 117 | CACHE DE PESQUISA | FORA DE ESCOPO | `decisão` | cache de pesquisa: não há pesquisa na web — 21 tools fixas, todas de Discord |
-| 118 | QUALIDADE DAS FONTES | FORA DE ESCOPO | `decisão` | qualidade das fontes: não há fonte externa sendo consumida |
+| 116 | BACKGROUND DISCOVERY | PRONTA | `tests/test_catalogo.py` | pedido simples não dispara probe nem pesquisa; satisfeito por ausência e travado por teste |
+| 117 | CACHE DE PESQUISA | FORA DE ESCOPO | `decisão` | o catálogo persiste padrões mas NÃO tem TTL nem normalização de query, que é o que a seção pede |
+| 118 | QUALIDADE DAS FONTES | FORA DE ESCOPO | `decisão` | o catálogo tem Confianca e fonte, mas não avalia licença nem atualidade por data — cobre parte, não a seção inteira |
 | 119 | SISTEMA DE CONFIANÇA | PRONTA | `tests/test_catalogo.py` | filtro por confiança mínima |
 | 120 | AUTO-DIAGNÓSTICO | PRONTA | `tests/test_observability.py` | as três perguntas apontam a falha |
 | 121 | HEALTH DASHBOARD INTERNO | PRONTA | `tests/test_observability.py` | painel avisa IA morta, pool degradado, e diz quando está bem |
@@ -149,9 +149,9 @@ Seções na spec: **188**
 | 138 | REVISÃO DEPOIS DE EXECUTAR | PRONTA | `tests/test_design_check.py` | conferir_contra_design compara estado real com o projetado; roda na conclusão normal, não só no limite de turnos |
 | 139 | APRENDIZADO POR FEEDBACK | PRONTA | `tests/test_catalogo.py` | registrar_feedback por guild; promover exige fonte não vazia |
 | 140 | NÃO REPETIR ERROS | PRONTA | `tests/test_catalogo.py` | feedback por guild, promover exige fonte |
-| 141 | PESQUISA CONTÍNUA DE DESIGN | FORA DE ESCOPO | `decisão` | pesquisa contínua de design: fora de escopo (sem busca na web) |
-| 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | FORA DE ESCOPO | `decisão` | pesquisa contínua de tecnologia: fora de escopo |
-| 143 | PESQUISA CONTÍNUA DE IA | FORA DE ESCOPO | `decisão` | pesquisa contínua de IA: o pool é reavaliado por probe, mas descobrir provedor novo na web está fora |
+| 141 | PESQUISA CONTÍNUA DE DESIGN | FORA DE ESCOPO | `decisão` | não há pesquisa contínua de design em runtime; padrões vêm do catálogo, atualizado à mão com fonte |
+| 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | FORA DE ESCOPO | `decisão` | não há pesquisa contínua de tecnologia em runtime |
+| 143 | PESQUISA CONTÍNUA DE IA | FORA DE ESCOPO | `decisão` | o pool é reavaliado por probe; descobrir provedor NOVO na web exige busca, que não está configurada |
 | 144 | FILTRO DE PROVIDERS | PRONTA | `tests/test_router.py` | probe classifica rota e reavaliar afasta a ruim / revive a boa |
 | 145 | POOL DINÂMICO | PRONTA | `tests/test_router.py` | pool com gateway/modelo/capacidade/saúde/latência/limite/peso |
 | 146 | MANUAL REQUIRED | PRONTA | `tests/test_providers_spec.py` | MANUAL_REQUIRED marcado e sem chave; o sistema continua |
@@ -192,17 +192,17 @@ Seções na spec: **188**
 | 181 | DOCUMENTAÇÃO FINAL | PROCESSO | `README.md` | documentação final |
 | 182 | RESULTADO FINAL ESPERADO | PRONTA | `tests/test_wiring.py` | pedido → plano → tools → verificação → resposta, de ponta a ponta |
 | 183 | REGRA FINAL DE INTELIGÊNCIA | PROCESSO | `README.md` | princípios fundamentais registrados |
-| 184 | REGRA FINAL DE PESQUISA | FORA DE ESCOPO | `decisão` | regra final de pesquisa: depende de acesso legítimo a busca, que não existe neste projeto |
+| 184 | REGRA FINAL DE PESQUISA | FORA DE ESCOPO | `decisão` | a regra vale para quem desenvolve e foi seguida (pesquisa offline, fonte registrada, teste), mas o SISTEMA não pesquisa sozinho |
 | 185 | REGRA FINAL DE IMPLEMENTAÇÃO | PROCESSO | `docs/AUDITORIA.md` | sem placeholder, mock escondido, sucesso falso |
 | 186 | REGRA FINAL DE AUTONOMIA | PROCESSO | `docs/AUDITORIA.md` | limites de autonomia registrados |
 | 187 | PRIMEIRA AÇÃO AO RECEBER ESTE DOCUMENTO | PROCESSO | `docs/AUDITORIA.md` | fase 0 foi auditoria, fase 1 foi roadmap real |
 
 ## Resumo
 
-- PRONTA: **141**
+- PRONTA: **143**
 - PARCIAL: **2**
 - ABERTA: **0**
-- FORA DE ESCOPO: **14**
+- FORA DE ESCOPO: **12**
 - PROCESSO: **31**
 - Total: **188**
 

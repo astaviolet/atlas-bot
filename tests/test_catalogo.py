@@ -6,6 +6,8 @@ import unicodedata
 
 from atlas.catalogo import Catalogo, Confianca
 
+from conftest import final, turn
+
 
 def _sem_acento(texto: str) -> str:
     """A marca 'NAO VERIFICADO' tem til na fonte real; comparar sem normalizar
@@ -167,3 +169,58 @@ def test_padrao_nao_e_template():
         assert not any(n in p.texto for n in ("📢", "💬", "🎮")), \
             f"{p.id} parece template com emoji, nao principio"
         assert len(p.texto) < 300, f"{p.id} longo demais para ser principio"
+
+
+# ------------------------------------------------- spec 31: nao copiar servidores
+def test_nenhum_nome_proprietario_vaza_para_o_design():
+    """Spec 31: referencia ensina principio, nao se copia identidade, texto,
+    nome proprietario ou branding. O tema entra como vocabulario generico
+    ('zero build', 'survival'), nunca como marca ou texto de outro servidor."""
+    from atlas.design_system import (
+        Briefing, Dominio, Porte, Publico, projetar,
+    )
+
+    proibidos = ("ninja", "tfue", "loud", "furia", "mibr", "faker", "navi",
+                 "hypex", "fortnite.gg", "discord.gg", "copyright", "®", "™")
+    for dominio in Dominio:
+        arq = projetar(Briefing(tema="servidor da comunidade", dominio=dominio,
+                                porte=Porte.MEDIO, publico=Publico.MISTO))
+        blob = " ".join(arq.nomes_de_canal()).lower()
+        blob += " " + " ".join(c.nome for c in arq.cargos).lower()
+        for marca in proibidos:
+            assert marca not in blob, f"{dominio.value} vazou '{marca}': {blob[:160]}"
+
+
+def test_catalogo_guarda_padrao_e_nao_estrutura_proprietaria():
+    """O catalogo e onde a pesquisa entra. Se ele guardasse nome de canal de um
+    servidor real, a spec 31 estaria violada na fonte."""
+    c = Catalogo()
+    blob = " ".join(f"{p.id} {p.texto}" for p in c.todos()).lower()
+    for marca in ("discord.gg", "loud", "furia", "mibr", "navi"):
+        assert marca not in blob, f"catalogo guarda marca: {marca}"
+
+
+# ------------------------------------------------- spec 116: pesquisa nao atrasa
+def test_pedido_simples_nao_dispara_pesquisa_nem_probe(harness):
+    """Spec 116: 'crie um canal' nao pode atrasar por causa de pesquisa global.
+    Satisfeito por ausencia - nao ha pesquisa em runtime - e este teste e o que
+    garante que continua assim: se alguem ligar probe no caminho simples, quebra.
+    """
+    from atlas.ai import discovery
+
+    chamadas: list[str] = []
+    orig_probe = discovery.probe_rota
+
+    def espiao(*a, **kw):
+        chamadas.append("probe_rota")
+        return orig_probe(*a, **kw)
+
+    discovery.probe_rota = espiao
+    try:
+        h = harness([turn(("create_channel", {"name": "avisos", "type": "text"})),
+                     final("Canal criado.")])
+        h.ask("cria um canal de avisos")
+    finally:
+        discovery.probe_rota = orig_probe
+
+    assert chamadas == [], f"pedido simples disparou pesquisa: {chamadas}"
