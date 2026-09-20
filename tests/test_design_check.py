@@ -116,3 +116,53 @@ def test_qa_aparece_so_em_construcao_grande(harness):
     h = harness([turn(("create_category", {"name": "Staff"})), final("ok")])
     out = h.ask("cria categoria Staff")
     assert not any("vazia" in (e.description or "") for e in out.embeds)
+
+
+# ------------------------------------------------ Fase 6: dry run (spec 11/12/133)
+def test_dry_run_agrupa_por_verbo_e_tipo():
+    from atlas.executor import PreparedPlan
+    from atlas.executor import PlannedAction
+
+    acoes = [
+        PlannedAction(tool="create_category", params={"name": "A"}),
+        PlannedAction(tool="create_category", params={"name": "B"}),
+        PlannedAction(tool="create_channel", params={"name": "x"}),
+        PlannedAction(tool="create_role", params={"name": "R"}),
+        PlannedAction(tool="edit_channel", params={"channel_id": "1"}),
+        PlannedAction(tool="delete_channel", params={"channel_id": "2"}),
+    ]
+    plano = PreparedPlan(actions=acoes, token="t", counts={})
+    seco = plano.dry_run()
+
+    assert "2 criar categoria" in seco
+    assert "1 criar canal" in seco
+    assert "1 criar cargo" in seco
+    assert "1 remover canal" in seco
+    assert "1 alterar canal" in seco
+
+
+def test_construcao_grande_pede_confirmacao(harness):
+    """Spec 12: montar o servidor inteiro tem que mostrar o plano antes."""
+    import dataclasses
+
+    muitas = [("create_channel", {"name": f"c{i}", "type": "text"}) for i in range(16)]
+    h = harness([turn(*muitas), final("ok")], seed=False)
+    novos = dataclasses.replace(h.limits, build_confirm_threshold=15)
+    h.limits = novos
+    h.ctx.limits = novos  # o Executor le do ctx, nao do harness
+
+    out = h.ask("monta o servidor")
+    assert out.blocked == "confirmation_required", out.blocked
+    assert h.session.pending is not None
+    assert "16 criar canal" in h.session.pending.summary, h.session.pending.summary
+
+
+def test_construcao_pequena_nao_pede_confirmacao(harness):
+    h = harness([
+        turn(("create_channel", {"name": "a", "type": "text"}),
+             ("create_channel", {"name": "b", "type": "text"})),
+        final("ok"),
+    ], seed=False)
+    out = h.ask("cria dois canais")
+    assert out.blocked is None, out.blocked
+    assert h.find_channel_id("a") is not None

@@ -37,14 +37,37 @@ class PreparedPlan:
     token: str
     counts: dict[str, int]
     destructive_labels: list[str] = field(default_factory=list)
+    #: Preenchido pelo Executor quando o plano precisa de confirmacao. Guarda o
+    #: texto pronto para mostrar. Centralizar aqui evita ter a mesma decisao
+    #: escrita em dois lugares - foi assim que a construcao grande ficou de fora.
+    confirm_summary: str = ""
 
     @property
     def needs_confirmation(self) -> bool:
-        return bool(self.destructive_labels)
+        return bool(self.confirm_summary)
 
     def summary(self) -> str:
         lines = [a.describe() for a in self.actions]
         return "\n".join(f"{i + 1}. {line}" for i, line in enumerate(lines))
+
+    def dry_run(self) -> str:
+        """Resumo do que vai acontecer, sem executar nada (spec 12).
+
+        Agrupado por verbo e tipo: "criar 8 categorias, 27 canais" diz mais do
+        que 35 linhas de acao, e e o que a pessoa precisa para decidir.
+        """
+        alvos = {"category": "categoria", "channel": "canal", "role": "cargo",
+                 "server": "servidor"}
+        grupos: dict[str, int] = {}
+        for a in self.actions:
+            verbo = "criar" if a.tool.startswith("create_") else (
+                "remover" if a.tool in DESTRUCTIVE_TOOLS else "alterar"
+            )
+            cru = a.tool.split("_", 1)[1] if "_" in a.tool else a.tool
+            chave = f"{verbo} {alvos.get(cru, cru)}"
+            grupos[chave] = grupos.get(chave, 0) + 1
+        partes = [f"{qt} {nome}" for nome, qt in sorted(grupos.items())]
+        return ", ".join(partes) if partes else "nada"
 
 
 class Executor:
@@ -162,16 +185,33 @@ class Executor:
 
         # 6. confirmacao
         token = self._plan_token(actions)
+        resumo_dry = PreparedPlan(actions=actions, token=token, counts=counts).dry_run()
         destructive_total = sum(1 for a in actions if a.tool in DESTRUCTIVE_TOOLS)
-        if destructive_total >= self.policy.destructive_confirm_threshold and require_confirmation:
-            if confirm_token != token:
+        cria_total = counts.get("creates", 0)
+        limiar_destrutivo = self.policy.destructive_confirm_threshold
+        limiar_construcao = self.ctx.limits.build_confirm_threshold
+        precisa = (
+            destructive_total >= limiar_destrutivo or cria_total >= limiar_construcao
+        )
+        confirm_summary = ""
+        if precisa and confirm_token != token:
+            # Mostra o plano inteiro, nao so as exclusoes: construcao grande
+            # tambem merece ser vista antes (spec 12/133).
+            linhas = [f"Plano: {resumo_dry}"]
+            linhas.extend(f"- {l}" for l in destructive_labels)
+            confirm_summary = "\n".join(linhas)
+            if require_confirmation:
                 raise ConfirmationRequired(
-                    f"{destructive_total} acoes destrutivas sem confirmacao",
-                    summary="\n".join(f"- {l}" for l in destructive_labels),
+                    f"plano grande sem confirmacao ({destructive_total} remocoes, "
+                    f"{cria_total} criacoes)",
+                    summary=confirm_summary,
                     token=token,
                 )
 
-        return PreparedPlan(actions=actions, token=token, counts=counts, destructive_labels=destructive_labels)
+        return PreparedPlan(
+            actions=actions, token=token, counts=counts,
+            destructive_labels=destructive_labels, confirm_summary=confirm_summary,
+        )
 
     @staticmethod
     def _plan_token(actions: list[PlannedAction]) -> str:

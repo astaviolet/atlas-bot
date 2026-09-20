@@ -77,6 +77,10 @@ class Limits:
     #: avisar. Curto de proposito: ficar 30s em silencio e pior do que dizer
     #: "estou ocupado" na hora (spec 114).
     guild_lock_timeout_seconds: float = 2.0
+    #: Construcao grande tambem pede confirmacao, nao so exclusao (spec 12).
+    #: Montar 20 canais de uma vez muda o servidor inteiro; a pessoa tem que ver
+    #: o plano antes, nao depois.
+    build_confirm_threshold: int = 15
 
     # texto
     max_embed_description: int = 1800

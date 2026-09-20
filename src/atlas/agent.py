@@ -290,16 +290,17 @@ class Agent:
             # guardar os `calls` reais e reexecutar depois do "sim".
             plan = self.executor.prepare(calls, require_confirmation=False)
 
-            # plano com exclusoes relevantes: para e pergunta antes de tocar em nada
-            deletes = plan.counts.get("deletes", 0)
-            if deletes >= self.policy.destructive_confirm_threshold:
-                summary = "\n".join(f"- {l}" for l in plan.destructive_labels)
+            # A decisao de "precisa confirmar" e do Executor, nao daqui.
+            # Antes este bloco recontava so as exclusoes e deixava passar
+            # construcao grande (spec 12).
+            if plan.needs_confirmation:
+                summary = plan.confirm_summary
                 session.pending = PendingConfirmation(
                     token=plan.token, calls=calls, summary=summary,
                     created_at=session.clock(),
                 )
                 return AgentOutcome(
-                    embeds=[confirmation_embed(self.builder, summary, deletes)],
+                    embeds=[confirmation_embed(self.builder, summary, _count_lines(summary))],
                     blocked="confirmation_required",
                 )
 

@@ -62,16 +62,28 @@ def test_10b_lote_com_falha_parcial_reporta_o_que_falhou(harness):
 
 
 def test_10c_lote_grande_respeita_a_cota(harness):
-    """40 criacoes passam; 41 nao."""
+    """40 criacoes passam depois de confirmadas; 41 a cota barra.
+
+    A Fase 6 mudou o primeiro passo de proposito: construcao grande agora mostra
+    o plano e espera o "sim" antes de tocar no Discord (spec 12). O teste antigo
+    esperava execucao direta; o fluxo novo e confirmar e so entao executar.
+    """
     calls = [("create_channel", {"name": f"c{i}", "type": "text"}) for i in range(40)]
     h = harness([turn(*calls), final("ok")], seed=False)
-    outcome = h.ask("cria 40 canais")
+    pedido = h.ask("cria 40 canais")
+    assert pedido.blocked == "confirmation_required", pedido.blocked
+
+    outcome = h.ask("sim")
     assert len([r for r in outcome.results if r.ok]) == 40
 
     calls = [("create_channel", {"name": f"d{i}", "type": "text"}) for i in range(41)]
     h2 = harness([turn(*calls), final("ok")], seed=False)
+    # 41 estoura a cota, e a cota e checada ANTES da confirmacao: recusa na
+    # hora, sem nem perguntar. Melhor do que pedir "sim" para algo impossivel.
     outcome2 = h2.ask("cria 41 canais")
-    assert outcome2.results == []
+    assert outcome2.results == [], "41 passa da cota e nao pode executar nada"
+    assert outcome2.blocked is None, "e erro de cota, nao pedido de confirmacao"
+    assert any("limite" in (e.description or "") for e in outcome2.embeds)
 
 
 def test_exclusao_multipla_exige_confirmacao(harness):
