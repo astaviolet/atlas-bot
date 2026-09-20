@@ -59,11 +59,11 @@ Seções na spec: **188**
 | 48 | MEMÓRIA | PRONTA | `tests/test_batch.py` | memória de contexto entre mensagens, separada por guild |
 | 49 | CONTEXTO | ABERTA | `—` |  |
 | 50 | PROMPT INJECTION | PRONTA | `tests/test_security.py` | prompt injection bloqueado; unicode invisível detectado |
-| 51 | AI ROUTER | ABERTA | `—` |  |
-| 52 | MULTI-PROVIDER | ABERTA | `—` |  |
-| 53 | DESCOBERTA DE PROVIDERS | ABERTA | `—` |  |
-| 54 | NO-KEY / FREE-FIRST | ABERTA | `—` |  |
-| 55 | NÃO BYPASSAR LIMITES | ABERTA | `—` |  |
+| 51 | AI ROUTER | PRONTA | `tests/test_router.py` | camada abstrata: base_url/modelo por gateway, sem provider fixo |
+| 52 | MULTI-PROVIDER | PRONTA | `tests/test_router.py` | catálogo com gateway/modelo/capacidade/limite; pool sobrevive a gateway inteiro caindo |
+| 53 | DESCOBERTA DE PROVIDERS | PARCIAL | `src/atlas/ai/discovery.py` | reavalia o pool continuamente (probe/reavaliar); descobrir provedor novo na web está fora de escopo |
+| 54 | NO-KEY / FREE-FIRST | PRONTA | `tests/test_providers_spec.py` | pool default sem chave, nenhuma chave embutida, quem exige está MANUAL_REQUIRED |
+| 55 | NÃO BYPASSAR LIMITES | PRONTA | `tests/test_providers_spec.py` | rpm declarado por gateway é o teto; nada acima do que o tier gratuito dá |
 | 56 | HEALTH CHECK | PRONTA | `tests/test_router.py` | falhas repetidas colocam a rota em cooldown |
 | 57 | FALLBACK | PRONTA | `tests/test_router.py` | falha transitória vai para a próxima rota |
 | 58 | CAPABILITY ROUTING | PRONTA | `tests/test_router.py` | pedido com tools exige rota com tool calling |
@@ -114,9 +114,9 @@ Seções na spec: **188**
 | 103 | LOAD TESTING | ABERTA | `—` |  |
 | 104 | PERFORMANCE | ABERTA | `—` |  |
 | 105 | CUSTO | ABERTA | `—` |  |
-| 106 | PROVIDER COST-AWARE ROUTING | ABERTA | `—` |  |
+| 106 | PROVIDER COST-AWARE ROUTING | PRONTA | `tests/test_providers_spec.py` | pool inteiro gratuito e anônimo — não há eixo de custo; teste impede entrar provedor pago sem notar |
 | 107 | MODEL SELECTION | PRONTA | `tests/test_classificacao.py` | classe da tarefa influencia a rota |
-| 108 | TOOL-CALLING | ABERTA | `—` |  |
+| 108 | TOOL-CALLING | PRONTA | `tests/test_router.py` | pedido com tools exige rota com tool calling; sem tools usa rota sem |
 | 109 | STRUCTURED OUTPUT | ABERTA | `—` |  |
 | 110 | STREAMING | ABERTA | `—` |  |
 | 111 | CONVERSAÇÃO NATURAL | ABERTA | `—` |  |
@@ -152,10 +152,10 @@ Seções na spec: **188**
 | 141 | PESQUISA CONTÍNUA DE DESIGN | ABERTA | `—` |  |
 | 142 | PESQUISA CONTÍNUA DE TECNOLOGIA | ABERTA | `—` |  |
 | 143 | PESQUISA CONTÍNUA DE IA | ABERTA | `—` |  |
-| 144 | FILTRO DE PROVIDERS | ABERTA | `—` |  |
-| 145 | POOL DINÂMICO | ABERTA | `—` |  |
-| 146 | MANUAL REQUIRED | ABERTA | `—` |  |
-| 147 | SEM CHAVE NÃO SIGNIFICA SEM RESTRIÇÃO | ABERTA | `—` |  |
+| 144 | FILTRO DE PROVIDERS | PRONTA | `tests/test_router.py` | probe classifica rota e reavaliar afasta a ruim / revive a boa |
+| 145 | POOL DINÂMICO | PRONTA | `tests/test_router.py` | pool com gateway/modelo/capacidade/saúde/latência/limite/peso |
+| 146 | MANUAL REQUIRED | PRONTA | `tests/test_providers_spec.py` | MANUAL_REQUIRED marcado e sem chave; o sistema continua |
+| 147 | SEM CHAVE NÃO SIGNIFICA SEM RESTRIÇÃO | PRONTA | `tests/test_providers_spec.py` | todo gateway sem chave tem rpm e concorrência declarados |
 | 148 | ESCALABILIDADE | PRONTA | `tests/test_flow_control.py` | backpressure e fila |
 | 149 | BACKPRESSURE | PRONTA | `tests/test_flow_control.py` | backpressure |
 | 150 | FAIRNESS | PRONTA | `tests/test_flow_control.py` | cota por guild em janela |
@@ -181,13 +181,13 @@ Seções na spec: **188**
 | 170 | TESTE DE USABILIDADE | PRONTA | `tests/test_design_final.py` | primeiro canal é de chegada e a jornada começa pelo combinado |
 | 171 | TESTE DE ADMINISTRADOR | PRONTA | `tests/test_design_final.py` | hierarquia sem posição repetida; servidor grande tem staff privada |
 | 172 | TESTE DE ESCALA | PRONTA | `tests/test_design_final.py` | projeção em porte grande mantém nota e não estoura em canal inútil |
-| 173 | TESTE DE CONCORRÊNCIA | ABERTA | `—` |  |
-| 174 | TESTE DE PROVIDERS | ABERTA | `—` |  |
-| 175 | TESTE DE TOOL CAPABILITY | ABERTA | `—` |  |
+| 173 | TESTE DE CONCORRÊNCIA | PRONTA | `tests/test_router.py` | muitos usuários simultâneos não se misturam; concorrência respeita limite por gateway |
+| 174 | TESTE DE PROVIDERS | PRONTA | `tests/test_router.py` | gateway caindo inteiro, 429 como fila, chave exigida, pool sem rota compatível |
+| 175 | TESTE DE TOOL CAPABILITY | PRONTA | `tests/test_router.py` | probe detecta modelo sem tool calling; router escolhe pela capacidade |
 | 176 | TESTE DE SEGURANÇA | PRONTA | `tests/test_security.py` | outra guild, permissão proibida, membro, injection — todos falham |
 | 177 | TESTE DE CONFIRMAÇÃO | PRONTA | `tests/test_batch.py` | confirmação vencida não executa |
 | 178 | TESTE DE DUPLICAÇÃO | PRONTA | `tests/test_tools_basic.py` | não cria duas categorias |
-| 179 | TESTE DE RESTART | ABERTA | `—` |  |
+| 179 | TESTE DE RESTART | PRONTA | `tests/test_recuperacao.py` | tarefa interrompida de verdade é detectada; nada é reexecutado às cegas |
 | 180 | TESTE DE PARTIAL FAILURE | PRONTA | `tests/test_batch.py` | falha parcial: estado, logs e resposta |
 | 181 | DOCUMENTAÇÃO FINAL | ABERTA | `—` |  |
 | 182 | RESULTADO FINAL ESPERADO | ABERTA | `—` |  |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **98**
-- PARCIAL: **6**
-- ABERTA: **78**
+- PRONTA: **112**
+- PARCIAL: **7**
+- ABERTA: **63**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 
