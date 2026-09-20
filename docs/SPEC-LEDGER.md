@@ -56,7 +56,7 @@ Seções na spec: **188**
 | 45 | RECONSTRUÇÃO DE SERVIDORES | PRONTA | `tests/test_reforma.py` | audita nomenclatura mista, categoria demais, admin demais + os defeitos que design_check já achava |
 | 46 | PRESERVAÇÃO | PRONTA | `tests/test_reforma.py` | nada é excluído: sobra vira suspeita para decisão humana; canal padrão é preservado |
 | 47 | SERVER DESIGN QA | PRONTA | `tests/test_design_check.py` | QA interno: categoria vazia, canal duplicado, cargo com admin, canal órfão |
-| 48 | MEMÓRIA | ABERTA | `—` |  |
+| 48 | MEMÓRIA | PRONTA | `tests/test_batch.py` | memória de contexto entre mensagens, separada por guild |
 | 49 | CONTEXTO | ABERTA | `—` |  |
 | 50 | PROMPT INJECTION | PRONTA | `tests/test_security.py` | prompt injection bloqueado; unicode invisível detectado |
 | 51 | AI ROUTER | ABERTA | `—` |  |
@@ -99,8 +99,8 @@ Seções na spec: **188**
 | 88 | CONFIGURATION VERSIONING | PRONTA | `tests/test_snapshot.py` | versionamento JSONL por guild (Fase 13 `9797e35`) |
 | 89 | TASK SYSTEM | PRONTA | `3cadac1` | task system com estados |
 | 90 | CANCELAMENTO | PRONTA | `76ae5c1` | cancelamento de tarefa |
-| 91 | TIMEOUTS | ABERTA | `—` |  |
-| 92 | RESILIÊNCIA | ABERTA | `—` |  |
+| 91 | TIMEOUTS | PRONTA | `tests/test_wiring.py` | deadline por pedido e timeout por chamada; prazo 0 corta antes da primeira chamada |
+| 92 | RESILIÊNCIA | PRONTA | `tests/test_errors.py` | provider offline, erro da IA, erro da API Discord, timeout — o agente responde em todos |
 | 93 | RECUPERAÇÃO APÓS RESTART | PRONTA | `tests/test_recuperacao.py` | classifica pós-restart, não executa |
 | 94 | SEGURANÇA DE SEGREDOS | PRONTA | `tests/test_audit.py` | segredo mascarado antes do handler de log |
 | 95 | CONFIGURAÇÃO | ABERTA | `—` |  |
@@ -160,7 +160,7 @@ Seções na spec: **188**
 | 149 | BACKPRESSURE | PRONTA | `tests/test_flow_control.py` | backpressure |
 | 150 | FAIRNESS | PRONTA | `tests/test_flow_control.py` | cota por guild em janela |
 | 151 | SEGURANÇA DE TOOLS | PRONTA | `tests/test_security.py` | barreiras de schema, auth, policy e contexto |
-| 152 | TOOL RESULT | ABERTA | `—` |  |
+| 152 | TOOL RESULT | PARCIAL | `src/atlas/queue.py` | ActionResult tem ok/data/error/error_kind/verified; falta o campo metadata que a spec lista |
 | 153 | OBSERVAÇÃO DO DISCORD | ABERTA | `—` |  |
 | 154 | EVENTUAL CONSISTENCY | ABERTA | `—` |  |
 | 155 | OPERAÇÕES EM LOTE | PRONTA | `tests/test_batch.py` | lote respeita a cota e reporta falhas |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **85**
-- PARCIAL: **6**
-- ABERTA: **91**
+- PRONTA: **88**
+- PARCIAL: **7**
+- ABERTA: **87**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 
