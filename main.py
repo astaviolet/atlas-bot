@@ -37,7 +37,7 @@ def _health() -> int:
                 estado = f"ERRO {type(exc).__name__}"
             if estado == "OK":
                 ok += 1
-            print(f"  {gateway.key}/{modelo.model:34} {estado}")
+            print(f"  {gateway.id}/{modelo.model:34} {estado}")
     print(f"\n  respondendo: {ok}/{total}")
     return 0 if ok else 1
 
@@ -58,14 +58,34 @@ def _check() -> int:
     return 0
 
 
+def _painel() -> int:
+    """Resumo curto para o log da run. Nunca derruba o job: e informativo."""
+    from atlas.audit import AuditLog
+
+    audit = AuditLog()
+    registros = audit.records
+    print(f"  acoes auditadas nesta run: {len(registros)}")
+    por_acao: dict[str, int] = {}
+    for r in registros:
+        por_acao[r.get("action", "?")] = por_acao.get(r.get("action", "?"), 0) + 1
+    for acao, n in sorted(por_acao.items(), key=lambda kv: -kv[1])[:10]:
+        print(f"    {acao:34} {n}")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(prog="atlas")
     parser.add_argument("--health", action="store_true", help="testa o pool de IA e sai")
+    # --pool e sinonimo de --health: e o nome que o workflow usa
+    parser.add_argument("--pool", action="store_true", help="sonda o pool de IA e sai")
     parser.add_argument("--check", action="store_true", help="valida a configuracao e sai")
+    parser.add_argument("--painel", action="store_true", help="resumo da auditoria e sai")
     args = parser.parse_args()
 
-    if args.health:
+    if args.health or args.pool:
         return _health()
+    if args.painel:
+        return _painel()
     if args.check:
         try:
             return _check()
