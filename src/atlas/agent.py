@@ -16,6 +16,7 @@ from .ai import ModelClient, ensure_call_ids
 from .audit import AuditLog
 from .config import Limits
 from .design_check import auditar_servidor
+from .task import TaskState, estado_da_tarefa
 from .embeds import EmbedBuilder, EmbedSpec
 from .errors import AIError, AtlasError, ConfirmationRequired
 from .executor import Executor
@@ -41,6 +42,12 @@ class AgentOutcome:
     embeds: list[EmbedSpec] = field(default_factory=list)
     results: list[ActionResult] = field(default_factory=list)
     blocked: str | None = None
+
+    @property
+    def state(self) -> "TaskState":
+        """Estado final da tarefa (spec 89). Derivado, nao guardado: assim ele
+        nunca diverge do que realmente aconteceu."""
+        return estado_da_tarefa(self.results, self.blocked)
 
 
 class Agent:

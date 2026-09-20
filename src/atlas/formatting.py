@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from .task import resumo_da_tarefa
+
 from .embeds import EmbedBuilder, EmbedField, EmbedKind, EmbedSpec
 from .queue import ActionResult
 
@@ -43,6 +45,11 @@ def result_embeds(builder: EmbedBuilder, results: Sequence[ActionResult]) -> lis
                 "", f"Nao consegui confirmar: {nomes}. Confere se ficou como voce queria."
             )
         )
+
+    if failed and ok:
+        # Sucesso parcial tem que dizer a conta (spec 22): "16 de 18" nao e
+        # "tudo pronto". Linha propria, curta.
+        embeds.append(builder.warning("", resumo_da_tarefa(results)))
 
     if failed:
         linhas = []

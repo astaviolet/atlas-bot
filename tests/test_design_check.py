@@ -166,3 +166,48 @@ def test_construcao_pequena_nao_pede_confirmacao(harness):
     out = h.ask("cria dois canais")
     assert out.blocked is None, out.blocked
     assert h.find_channel_id("a") is not None
+
+
+# ------------------------------------------------ Fase 7: estado da tarefa (spec 22/89/113)
+class _R:
+    def __init__(self, ok):
+        self.ok = ok
+
+
+def test_estado_da_tarefa_cobre_os_casos():
+    from atlas.task import TaskState, estado_da_tarefa
+
+    assert estado_da_tarefa([_R(True), _R(True)]) == TaskState.COMPLETED
+    assert estado_da_tarefa([_R(True), _R(False)]) == TaskState.PARTIAL
+    assert estado_da_tarefa([_R(False)]) == TaskState.FAILED
+    assert estado_da_tarefa([]) == TaskState.NOTHING_TO_DO
+    assert estado_da_tarefa([], "confirmation_required") == TaskState.AWAITING_CONFIRMATION
+    assert estado_da_tarefa([], "guild_busy") == TaskState.REJECTED
+    assert estado_da_tarefa([], "confirmation_expired") == TaskState.CANCELLED
+    assert estado_da_tarefa([], "prompt_injection") == TaskState.REJECTED
+
+
+def test_resumo_da_tarefa_diz_a_conta():
+    from atlas.task import resumo_da_tarefa
+
+    assert resumo_da_tarefa([_R(True)] * 16) == "16 concluida(s)"
+    r = resumo_da_tarefa([_R(True)] * 16 + [_R(False)] * 2)
+    assert "16" in r and "2" in r and "nao foi tudo" in r
+    assert "nenhuma concluida" in resumo_da_tarefa([_R(False), _R(False)])
+
+
+def test_falha_parcial_aparece_no_resultado(harness):
+    """Spec 22: 2 de 3 nao pode virar 'tudo pronto'."""
+    from atlas.task import TaskState
+
+    h = harness([
+        turn(("create_category", {"name": "OK"})),
+        turn(("create_channel", {"name": "bom", "type": "text"}),
+             ("create_channel", {"name": "ruim", "type": "text", "category_id": "999999999"})),
+        final("Parcial."),
+    ], seed=False)
+    out = h.ask("cria categoria e dois canais")
+
+    assert out.state == TaskState.PARTIAL, out.state
+    textos = " ".join(e.description or "" for e in out.embeds)
+    assert "nao foi tudo" in textos, textos
