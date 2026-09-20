@@ -261,10 +261,11 @@ class Router:
                 self.health.end(rota.key)
                 latencia = (time.perf_counter() - inicio) * 1000
                 reintentavel = exc.retryable
-                self.health.record_failure(
-                    rota.key, reason=exc.user_message or str(exc), retryable=reintentavel
-                )
                 tipo = classify_error(exc)
+                self.health.record_failure(
+                    rota.key, reason=exc.user_message or str(exc), retryable=reintentavel,
+                    rate_limited=(tipo == "rate_limit"),
+                )
                 self.stats.failure(rota.key, kind=tipo)
                 ultimo_erro = exc
                 # CORRECAO DA CAUSA RAIZ DE "Nenhum provedor respondeu":

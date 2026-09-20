@@ -620,3 +620,46 @@ def test_pool_de_um_gateway_unico_ainda_tenta_as_irmas():
 
     assert turno.wants_tools
     assert router.last_route == "U/u2"
+
+
+# ------------------------------------------------- 429 entra em cooldown na hora
+def test_rate_limit_entra_em_cooldown_sem_esperar_tres_falhas():
+    """429 não é "talvez transitório": é o provedor dizendo "espera".
+
+    Sem isso o router pagava a falha em TODA requisição. E ficou pior depois que
+    as irmãs do gateway passaram a ser adiadas: uma rota só por pedido => nunca
+    junta 3 falhas seguidas => cooldown nunca dispara => ~800ms jogados fora em
+    toda mensagem. Medido no log real de produção.
+    """
+    from atlas.ai.health import HealthRegistry
+
+    h = HealthRegistry()
+    h.begin("kilo/x")
+    h.record_failure("kilo/x", reason="429", retryable=True, rate_limited=True)
+
+    agora = h._now()
+    assert h.get("kilo/x").state.value == "COOLDOWN"
+    assert h.is_available("kilo/x", now=agora) is False, "429 não entrou em cooldown"
+    assert h.is_available("kilo/x", now=agora + 40) is True, "não voltou depois do cooldown"
+
+
+def test_falha_comum_ainda_precisa_de_tres_para_cair():
+    """Timeout e 500 continuam tolerantes — derrubar rota na primeira falha
+    comum deixaria o pool pequeno demais à toa."""
+    from atlas.ai.health import HealthRegistry
+
+    h = HealthRegistry()
+    h.begin("kilo/y")
+    h.record_failure("kilo/y", reason="timeout", retryable=True)
+    assert h.get("kilo/y").state.value == "HEALTHY", "caiu na primeira falha comum"
+    assert h.is_available("kilo/y", now=h._now()) is True
+
+
+def test_router_avisa_que_foi_rate_limit():
+    """O router tem que passar rate_limited=True, senão a correção não chega."""
+    from pathlib import Path
+
+    import atlas.ai.router as rt
+
+    fonte = Path(rt.__file__).read_text(encoding="utf-8")
+    assert 'rate_limited=(tipo == "rate_limit")' in fonte

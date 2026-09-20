@@ -113,12 +113,19 @@ class HealthRegistry:
             h.cooldown_seconds = self.base_cooldown
 
     def record_failure(
-        self, key: str, *, reason: str, retryable: bool = True
+        self, key: str, *, reason: str, retryable: bool = True,
+        rate_limited: bool = False,
     ) -> Health:
         """Registra falha e decide se a rota entra em cooldown ou morre.
 
         Falha nao-reintentavel (401, modelo inexistente) nao e fila: derruba a
         rota direto para DEAD, porque insistir nao vai resolver.
+
+        rate_limited pula o failure_threshold de proposito. 429 nao e "talvez
+        transitório": e o provedor dizendo "espera". Sem isso o router pagava a
+        falha em TODA requisicao — e ficou pior depois que as irmas do gateway
+        passaram a ser adiadas (uma rota so por pedido => nunca junta 3 falhas
+        seguidas => cooldown nunca dispara => ~800ms jogados fora toda vez).
         """
         now = self._now()
         h = self.get(key)
@@ -131,7 +138,7 @@ class HealthRegistry:
             h.state = Health.DEAD
             return h.state
 
-        if h.consecutive_failures >= self.failure_threshold:
+        if rate_limited or h.consecutive_failures >= self.failure_threshold:
             h.trips += 1
             h.consecutive_failures = 0
             # backoff exponencial: provedor que cai toda hora espera mais
