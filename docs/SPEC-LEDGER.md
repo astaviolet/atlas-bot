@@ -88,10 +88,10 @@ Seções na spec: **188**
 | 77 | LICENÇAS | ABERTA | `—` |  |
 | 78 | SISTEMA DE TEMPLATES | PRONTA | `tests/test_design_system.py` | tema sozinho não muda a estrutura |
 | 79 | REGRAS DE DESIGN | PRONTA | `tests/test_design_system.py` | público muda a estrutura |
-| 80 | FORTNITE | ABERTA | `—` |  |
-| 81 | MINECRAFT | ABERTA | `—` |  |
-| 82 | GTA RP | ABERTA | `—` |  |
-| 83 | OUTROS TEMAS | ABERTA | `—` |  |
+| 80 | FORTNITE | PRONTA | `tests/test_design_final.py` | Fortnite competitivo tem LFG e recrutamento; casual não vira esports |
+| 81 | MINECRAFT | PRONTA | `tests/test_design_final.py` | Minecraft casual tem dúvidas e voz, não área de torneio |
+| 82 | GTA RP | PRONTA | `tests/test_design_final.py` | GTA RP tem personagem, facções e recrutamento |
+| 83 | OUTROS TEMAS | PRONTA | `tests/test_design_final.py` | clube de leitura, fotografia e investimentos caem em domínio válido |
 | 84 | SERVER REBUILD | PRONTA | `tests/test_reforma.py` | AUDITAR → MAPEAR → PLANEJAR → MOSTRAR IMPACTO; não executa |
 | 85 | MIGRAÇÃO | PRONTA | `tests/test_reforma.py` | mapeia old→new e preserva id: renomeia e move em vez de excluir e recriar |
 | 86 | BACKUP LÓGICO | PRONTA | `1991c78` | backup lógico |
@@ -176,11 +176,11 @@ Seções na spec: **188**
 | 165 | REGRA DE RECUPERAÇÃO | ABERTA | `—` |  |
 | 166 | LIMPEZA FINAL | ABERTA | `—` |  |
 | 167 | AUDITORIA DE SEGURANÇA FINAL | ABERTA | `—` |  |
-| 168 | AUDITORIA DE DESIGN FINAL | ABERTA | `—` |  |
+| 168 | AUDITORIA DE DESIGN FINAL | PRONTA | `tests/test_design_final.py` | os 10 cenários da spec comparados por forma: nenhum repete estrutura |
 | 169 | TESTE DE PERSONALIDADE | PRONTA | `tests/test_design_system.py` | compara forma pelo propósito, nunca pelo nome |
-| 170 | TESTE DE USABILIDADE | ABERTA | `—` |  |
-| 171 | TESTE DE ADMINISTRADOR | ABERTA | `—` |  |
-| 172 | TESTE DE ESCALA | ABERTA | `—` |  |
+| 170 | TESTE DE USABILIDADE | PRONTA | `tests/test_design_final.py` | primeiro canal é de chegada e a jornada começa pelo combinado |
+| 171 | TESTE DE ADMINISTRADOR | PRONTA | `tests/test_design_final.py` | hierarquia sem posição repetida; servidor grande tem staff privada |
+| 172 | TESTE DE ESCALA | PRONTA | `tests/test_design_final.py` | projeção em porte grande mantém nota e não estoura em canal inútil |
 | 173 | TESTE DE CONCORRÊNCIA | ABERTA | `—` |  |
 | 174 | TESTE DE PROVIDERS | ABERTA | `—` |  |
 | 175 | TESTE DE TOOL CAPABILITY | ABERTA | `—` |  |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **90**
+- PRONTA: **98**
 - PARCIAL: **6**
-- ABERTA: **86**
+- ABERTA: **78**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 

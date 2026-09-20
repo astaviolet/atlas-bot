@@ -399,6 +399,55 @@ _BASE: dict[Dominio, list[tuple[str, str, list[tuple[str, str, str]]]]] = {
     ],
 }
 
+#: Porte grande ganha área extra, específica por domínio. Só adicionar "área de
+#: equipe" não bastava: gaming casual grande saía com 8 canais, abaixo da faixa
+#: de escalabilidade — ou seja, comunidade grande com estrutura de comunidade
+#: pequena. O acréscimo tem que ser conteúdo, não enchimento.
+_EXTRA_GRANDE: dict[Dominio, tuple[str, str, list[tuple[str, str, str]]]] = {
+    # 'clipes' e 'conquistas' ja estao na base; o extra tem que trazer conteudo
+    # novo, nao repetir o que existe.
+    Dominio.GAMING_COMPETITIVO: ("extra", "o que não cabe na rotina de partida", [
+        ("memes", "text", "piada interna da comunidade"),
+        ("análises", "text", "review de partida e estratégia"),
+        ("eventos", "text", "torneio e encontro da comunidade"),
+    ]),
+    # 'clipes' ja existe na base de gaming casual; repetir aqui era duplicata,
+    # que e o defeito que o QA de design aponta.
+    Dominio.GAMING_CASUAL: ("mídia", "mostrar o que a comunidade faz", [
+        ("construções", "text", "o que o pessoal fez no jogo"),
+        ("memes", "text", "piada interna da comunidade"),
+        ("eventos", "text", "o que a comunidade organiza"),
+    ]),
+    Dominio.RP: ("mídia", "registrar a história da cidade", [
+        ("clipes", "text", "cena que vale guardar"),
+        ("histórias", "text", "arco e acontecimento do RP"),
+    ]),
+    Dominio.CLA: ("mídia", "registrar o histórico do clã", [
+        ("clipes", "text", "jogada que vale mostrar"),
+        ("conquistas", "text", "vitória do clã"),
+    ]),
+    Dominio.CRIADOR: ("mídia", "conteúdo da comunidade", [
+        ("clipes", "text", "corte e momento do canal"),
+        ("fanart", "text", "o que a comunidade criou"),
+    ]),
+    Dominio.LOJA: ("comunidade", "quem já comprou", [
+        ("avaliações", "text", "o que achou do produto"),
+        ("trocas", "text", "pós-venda entre clientes"),
+    ]),
+    Dominio.SAAS: ("integrações", "uso avançado", [
+        ("api", "text", "dúvida técnica de integração"),
+        ("casos de uso", "text", "como o pessoal usa na prática"),
+    ]),
+    Dominio.EDUCACAO: ("turmas", "organizar por grupo", [
+        ("materiais", "text", "apostila e referência da turma"),
+        ("trabalhos", "text", "entrega e discussão"),
+    ]),
+    Dominio.COMUNIDADE: ("mídia", "compartilhar", [
+        ("mídia", "text", "imagem e vídeo do pessoal"),
+        ("memes", "text", "piada interna da comunidade"),
+    ]),
+}
+
 #: O que o porte corta. Ordem de corte: o último de cada lista some primeiro.
 _CORTE_POR_PORTE: dict[Porte, int] = {
     Porte.PEQUENO: 2,   # corta até 2 canais por categoria
@@ -441,8 +490,11 @@ _ONBOARDING: dict[Dominio, list[str]] = {
     Dominio.LOJA: [
         "ler a política de compra", "ver as novidades", "chamar no suporte",
     ],
+    # 'ler as regras' nao e opcional: a spec 43 poe ACEITAR REGRAS na jornada de
+    # qualquer comunidade, e comunidade de produto tambem tem combinado de
+    # conduta. Estava pulando esse passo.
     Dominio.SAAS: [
-        "ver o changelog", "tirar dúvida no suporte", "propor ideia",
+        "ler as regras", "ver o changelog", "tirar dúvida no suporte", "propor ideia",
     ],
     Dominio.EDUCACAO: [
         "ler os avisos", "tirar dúvida", "participar da conversa",
@@ -496,6 +548,18 @@ def projetar(briefing: Briefing) -> Arquitetura:
                              proposito="registro do que a equipe fez", privado=True),
                 ProjetoCanal(nome=_n(briefing, "equipe"), tipo="text",
                              proposito="conversa da staff", privado=True),
+            ],
+        ))
+        # E área de conteúdo extra. Só a área de staff deixava comunidade grande
+        # com estrutura de comunidade pequena (medido: gaming casual grande saía
+        # com 8 canais, fora da faixa de escalabilidade).
+        nome_extra, prop_extra, canais_extra = _EXTRA_GRANDE[briefing.dominio]
+        categorias.append(ProjetoCategoria(
+            nome=_n(briefing, nome_extra),
+            proposito=prop_extra,
+            canais=[
+                ProjetoCanal(nome=_n(briefing, nome), tipo=tipo, proposito=prop)
+                for nome, tipo, prop in canais_extra
             ],
         ))
 

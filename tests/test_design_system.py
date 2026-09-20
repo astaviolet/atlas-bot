@@ -344,3 +344,29 @@ def test_tipos_usados_estao_no_schema_da_tool():
         for cat in projetar(Briefing(dominio=dominio)).categorias:
             usados.update(c.tipo for c in cat.canais)
     assert usados <= aceitos, f"design usa tipo que a tool recusa: {usados - aceitos}"
+
+
+def test_varredura_nenhum_dominio_em_nenhum_porte_tem_duplicata():
+    """Teste de varredura: a classe de bug em que uma area nova repete nome de
+    canal que ja existe na base. Aconteceu duas vezes seguidas ao acrescentar as
+    areas de porte grande. Percorrer tudo e o unico jeito de pegar de uma vez."""
+    problemas = []
+    for dominio in Dominio:
+        for porte in Porte:
+            for estilo in EstiloVisual:
+                arq = projetar(Briefing(dominio=dominio, porte=porte, estilo=estilo))
+                nomes = [n.lower() for n in arq.nomes_de_canal()]
+                dup = {n for n in nomes if nomes.count(n) > 1}
+                if dup:
+                    problemas.append(f"{dominio.value}/{porte.value}/{estilo.value}: {dup}")
+    assert not problemas, "\n".join(problemas[:10])
+
+
+def test_varredura_toda_combinacao_tem_nota_minima():
+    problemas = []
+    for dominio in Dominio:
+        for porte in Porte:
+            nota = design_score(projetar(Briefing(dominio=dominio, porte=porte)))["geral"]
+            if nota < 8.0:
+                problemas.append(f"{dominio.value}/{porte.value}: {nota}")
+    assert not problemas, "\n".join(problemas[:10])
