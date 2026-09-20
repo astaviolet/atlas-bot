@@ -8,10 +8,12 @@ O modelo nunca chama o Discord direto.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from .audit import AuditLog
+from .config import Limits
+from .autofix import corrigir, diferenca
 from .errors import AtlasError
 from .policy import DESTRUCTIVE_TOOLS
 from .ratelimit import GuildRateLimiter
@@ -67,11 +69,14 @@ class ActionQueue:
         limiter: GuildRateLimiter,
         audit: AuditLog,
         dispatch: ToolHandler,
+        limits: Limits | None = None,
     ) -> None:
         self.guild_id = guild_id
         self.limiter = limiter
         self.audit = audit
         self.dispatch = dispatch
+        # Limites de nome/topico para a auto-correcao cortar no tamanho certo.
+        self.limits = limits or Limits()
         self._pending: list[PlannedAction] = []
         self._executed: list[ActionResult] = []
 
@@ -92,7 +97,7 @@ class ActionQueue:
     def clear_pending(self) -> None:
         self._pending.clear()
 
-    def run_one(self, action: PlannedAction) -> ActionResult:
+    def run_one(self, action: PlannedAction, *, corrigiu: bool = False) -> ActionResult:
         """Executa uma acao isolada. Nunca levanta: devolve ActionResult."""
         self.limiter.acquire(self.guild_id, action=action.tool)
         try:
@@ -118,6 +123,33 @@ class ActionQueue:
         else:
             verified = data.get("verified") if isinstance(data, dict) else None
             result = ActionResult(action=action, ok=True, data=data, verified=verified)
+
+        # Auto-correcao (spec 25): se o erro tem conserto conhecido, corrige e
+        # tenta UMA vez. Sem laco - retry infinito aqui seria um jeito de travar
+        # a run. E sem inventar: corrigir() devolve None quando o unico valor
+        # possivel seria adivinhado.
+        if not result.ok and not corrigiu:
+            novo_params = corrigir(
+                result.error or "", action.params,
+                max_name_len=self.limits.max_name_len,
+                max_topic_len=self.limits.max_topic_len,
+            )
+            if novo_params is not None:
+                self.audit.record(
+                    action="autofix.retry",
+                    guild_id=self.guild_id,
+                    params={"tool": action.tool, "motivo": result.error,
+                            "mudanca": diferenca(action.params, novo_params)},
+                    result="ok",
+                )
+                log.info("autofix %s (%s): %s", action.tool, result.error,
+                         diferenca(action.params, novo_params))
+                corrigida = replace(
+                    action,
+                    params=novo_params,
+                    label=f"{action.describe()} (corrigido)",
+                )
+                return self.run_one(corrigida, corrigiu=True)
 
         self.audit.record(
             action=action.tool,

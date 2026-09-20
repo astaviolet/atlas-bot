@@ -343,7 +343,10 @@ class AtlasBot(discord.Client):
                 if message is not None else None
             ),
         )
-        queue = ActionQueue(guild_id=guild.id, limiter=self.limiter, audit=self.audit, dispatch=lambda a: None)
+        queue = ActionQueue(
+            guild_id=guild.id, limiter=self.limiter, audit=self.audit,
+            dispatch=lambda a: None, limits=self.settings.limits,
+        )
         agent = build_agent(
             ctx=ctx,
             registry=self.registry,

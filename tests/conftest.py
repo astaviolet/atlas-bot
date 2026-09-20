@@ -84,6 +84,7 @@ class Harness:
             limiter=self.limiter,
             audit=self.audit,
             dispatch=lambda a: None,
+            limits=self.limits,
         )
         self.agent: Agent = build_agent(
             ctx=self.ctx,
