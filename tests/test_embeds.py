@@ -292,3 +292,67 @@ def test_merge_mantem_checklist_quando_e_a_unica_saida():
     junto = merge_embeds([EmbedBuilder().success("Feito", "- create_role @Moderador")])
     assert junto is not None
     assert "create_role @Moderador" in junto.description
+
+
+# --------------------------------- marcador de controle vazado pelo modelo
+def test_limpar_remove_marcador_de_controle_do_modelo():
+    """Caso REAL: o modelo devolveu a resposta seguida de <CPA_DONE> e foi
+    direto para o usuario."""
+    from atlas.texto import limpar
+
+    sujo = (
+        "Apaguei Membro Ativo e caps-renomeado. @everyone nao pode ser excluido.\n\n"
+        "<CPA_DONE>"
+    )
+    limpo = limpar(sujo)
+
+    assert "CPA_DONE" not in limpo
+    assert "<" not in limpo
+    assert limpo.endswith("nao pode ser excluido.")
+
+
+def test_limpar_remove_marcadores_pipe_e_de_bloco():
+    from atlas.texto import limpar
+
+    assert "end_of_turn" not in limpar("resposta<|end_of_turn|>")
+    assert "function_calls" not in limpar(
+        "ok\n<function_calls><invoke name=\"x\"></invoke></function_calls>"
+    )
+    assert "SYSTEM" not in limpar("texto\n[SYSTEM]\nmais")
+
+
+def test_limpar_nao_come_html_legitimo():
+    """Filtrar marcador nao pode virar 'remove qualquer <...>'."""
+    from atlas.texto import limpar
+
+    assert "a < b e c > d" in limpar("a < b e c > d")
+
+
+# ------------------------------------------------------------- Components V2
+def test_embed_vira_cartao_components_v2():
+    import discord
+
+    spec = EmbedBuilder().success("Feito", "Apaguei dois cargos.",
+                                 fields=[EmbedField("Removidos", "2")])
+    view = spec.to_layout_view()
+
+    assert isinstance(view, discord.ui.LayoutView)
+    container = view.children[0]
+    assert isinstance(container, discord.ui.Container)
+    assert container.accent_colour.value == 0x2ECC71, "cor tem que vir do tipo do embed"
+
+    textos = [c for c in container.children if isinstance(c, discord.ui.TextDisplay)]
+    assert textos[0].content == "Apaguei dois cargos."
+    assert "Removidos: 2" in textos[-1].content
+
+
+def test_cartao_v2_tambem_passa_pela_limpeza():
+    """A garantia de saida limpa vale nos dois formatos."""
+
+    spec = EmbedBuilder().info("x", "Canal (ID\u202f123) `ok` <CPA_DONE>")
+    view = spec.to_layout_view()
+    texto = view.children[0].children[0].content
+
+    assert "\u202f" not in texto
+    assert "`" not in texto
+    assert "CPA_DONE" not in texto

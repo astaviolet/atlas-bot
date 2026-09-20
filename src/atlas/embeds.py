@@ -90,6 +90,32 @@ class EmbedSpec:
             embed.add_field(name=limpar(f.name)[:256], value=limpar(f.value)[:1024], inline=f.inline)
         return embed
 
+    def to_layout_view(self) -> Any:
+        """Components V2: um cartao com barra de cor, em vez de embed.
+
+        Mais legivel que embed no celular e nao tem titulo nem rodape para
+        encher de ruido. Se algo der errado na hora de enviar, quem chama cai
+        no to_discord_embed().
+        """
+        import discord  # import tardio: nao obriga Discord em testes
+
+        from .texto import limpar
+
+        texto = limpar(self.description)
+        view = discord.ui.LayoutView(timeout=None)
+        container = discord.ui.Container(accent_colour=discord.Colour(self.color))
+        container.add_item(discord.ui.TextDisplay(texto or "..."))
+
+        # Campos viram uma linha discreta no fim, separada por um divisor.
+        # Em V2 nao existe campo inline de embed; texto pequeno resolve.
+        linhas = [f"{f.name}: {limpar(f.value)}" for f in self.fields if f.value]
+        if linhas:
+            container.add_item(discord.ui.Separator())
+            container.add_item(discord.ui.TextDisplay("-# " + "  ·  ".join(linhas)))
+
+        view.add_item(container)
+        return view
+
     def to_plain(self) -> str:
         """So para log/teste. NUNCA e o que vai para o Discord."""
         lines = [self.styled_title]

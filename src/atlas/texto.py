@@ -15,10 +15,9 @@ from __future__ import annotations
 import re
 import unicodedata
 
-#: Limite de caracteres da descricao de uma resposta. O usuario pediu para
-#: nunca mandar mensagem grande; 900 da para uma explicacao completa sem virar
-#: um muro de texto no meio da conversa.
-MAX_DESCRICAO = 300
+#: Limite de caracteres da resposta. O usuario pediu o mais direto possivel.
+#: 220 cabe uma frase completa e o essencial; o resto ele pergunta se quiser.
+MAX_DESCRICAO = 220
 
 # ---------------------------------------------------------------------------
 # Substituicoes de caractere
@@ -84,6 +83,22 @@ _LINHA_TABELA = re.compile(r"^\s*\|.*\|\s*$")
 _SEPARADOR_TABELA = re.compile(r"^\s*\|?[\s:|-]+\|?\s*$")
 _ESPACOS_SEGUIDOS = re.compile(r"[ \t]{2,}")
 _LINHAS_VAZIAS = re.compile(r"\n{3,}")
+
+# ---------------------------------------------------------------------------
+# Marcadores de controle que o modelo vaza
+# ---------------------------------------------------------------------------
+# Alguns modelos gratuitos sao treinados com frameworks de agente que usam
+# marcadores de fim de turno. O modelo emitiu "<CPA_DONE>" no meio da resposta
+# e foi direto para o usuario. Nao da para confiar que o modelo vai parar de
+# emitir, entao a saida filtra.
+_MARCADOR_TAG = re.compile(r"</?[A-Z][A-Z0-9_]{2,}\s*/?>")          # <CPA_DONE>
+_MARCADOR_PIPE = re.compile(r"<\|[^|>]{1,40}\|>")                   # <|end_of_turn|>
+_MARCADOR_LINHA = re.compile(r"^\s*(?:\[|<)(?:/)?(?:SYSTEM|ASSISTANT|TOOL|FUNCTION|OBSERVATION|HUMAN)(?:\]|>)\s*$", re.MULTILINE | re.IGNORECASE)
+_MARCADOR_BLOCO = re.compile(
+    r"<(?:function_calls|antml:[a-z_]+|thinking|tool_call|response)[^>]*>.*?"
+    r"</(?:function_calls|antml:[a-z_]+|thinking|tool_call|response)>",
+    re.DOTALL | re.IGNORECASE,
+)
 
 
 def _troca_char(txt: str) -> str:
@@ -151,11 +166,25 @@ def _corta_em_frase(txt: str, limite: int) -> str:
     return janela.rstrip() + " (...)"
 
 
+def tirar_marcadores(txt: str) -> str:
+    """Remove marcador de controle que o modelo vazou.
+
+    Caso real: o modelo devolveu a resposta seguida de "<CPA_DONE>", que foi
+    direto para o usuario.
+    """
+    txt = _MARCADOR_BLOCO.sub("", txt)
+    txt = _MARCADOR_PIPE.sub("", txt)
+    txt = _MARCADOR_TAG.sub("", txt)
+    txt = _MARCADOR_LINHA.sub("", txt)
+    return txt
+
+
 def limpar(texto: str, *, limite: int = MAX_DESCRICAO) -> str:
-    """Passa o texto por tudo: caracteres, markdown pesado e tamanho."""
+    """Passa o texto por tudo: marcador vazado, caracteres, markdown pesado, tamanho."""
     if not texto:
         return texto
-    txt = _troca_char(texto)
+    txt = tirar_marcadores(texto)
+    txt = _troca_char(txt)
     txt = _tabela_vira_linhas(txt)
     txt = _BACKTICK.sub("", txt)
     txt = _HEADER.sub("", txt)

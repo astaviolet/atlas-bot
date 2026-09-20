@@ -83,12 +83,13 @@ async def main() -> int:
                 return
 
             embed = unico.to_discord_embed()
+            view = unico.to_layout_view()
             if embed.title is not None:
                 falha.append(f"embed ainda tem titulo: {embed.title!r}")
             if embed.footer.text is not None:
                 falha.append(f"embed ainda tem rodape: {embed.footer.text!r}")
 
-            await canal.send(embed=embed)
+            await canal.send(view=view)
         except Exception as exc:  # noqa: BLE001
             import traceback
 
@@ -100,12 +101,15 @@ async def main() -> int:
     await bot.start(token)
 
     depois = _ultimas_mensagens(CANAL_PADRAO, token, 20)
-    do_bot = [m for m in depois if m["id"] not in antes and m.get("embeds")]
+    do_bot = [m for m in depois if m["id"] not in antes and (m.get("embeds") or m.get("components"))]
 
     print(f"\nmensagens novas do bot no canal: {len(do_bot)}")
     for m in do_bot:
-        for e in m["embeds"]:
-            print(f"  titulo={e.get('title')!r} rodape={(e.get('footer') or {}).get('text')!r}")
+        v2 = bool((m.get("flags") or 0) & 32768)
+        corpo = json.dumps(m.get("components") or m.get("embeds"), ensure_ascii=False)
+        print(f"  components_v2={v2} tamanho={len(corpo)}")
+        ruim = [x for x in ("CPA_DONE", "\\u202f", "|", "`") if x in corpo]
+        print(f"  sujeira: {ruim or 'nenhuma'}")
     if len(do_bot) != 1:
         falha.append(f"esperava 1 mensagem do bot, chegaram {len(do_bot)}")
 

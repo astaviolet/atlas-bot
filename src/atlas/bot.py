@@ -231,8 +231,17 @@ class AtlasBot(discord.Client):
             unico = self.builder.error(
                 "Sem resposta", "Fiz o pedido, mas nao tenho o que mostrar. Tenta de novo?"
             )
-        log.info("respondendo com 1 embed (juntou %d)", len(outcome.embeds))
-        await sender.send(unico)
+        log.info("respondendo com 1 mensagem (juntou %d)", len(outcome.embeds))
+        try:
+            # Passa pelo EmbedOnlySender igual ao caminho classico: a garantia
+            # de que so sai EmbedSpec (nunca texto puro) nao pode depender de
+            # qual formato de mensagem esta em uso.
+            await EmbedOnlySender(self._make_sender_v2(message.channel)).send(unico)
+        except discord.HTTPException:
+            # Components V2 pode nao estar liberado para este bot ainda. Cai no
+            # embed classico em vez de deixar o usuario sem resposta.
+            log.exception("Components V2 falhou; usando embed classico")
+            await sender.send(unico)
 
     # ------------------------------------------------------------- processamento
     async def _process(self, guild: discord.Guild, message: discord.Message, text: str, session: Any) -> Any:
@@ -289,6 +298,14 @@ class AtlasBot(discord.Client):
     def _make_sender(self, channel: discord.abc.Messageable) -> Any:
         async def send(embed: EmbedSpec) -> None:
             await channel.send(embed=embed.to_discord_embed())
+
+        return send
+
+    def _make_sender_v2(self, channel: discord.abc.Messageable) -> Any:
+        """Envia em Components V2. Continua sendo UMA mensagem por resposta."""
+
+        async def send(spec: EmbedSpec) -> None:
+            await channel.send(view=spec.to_layout_view())
 
         return send
 
