@@ -120,7 +120,7 @@ Seções na spec: **188**
 | 109 | STRUCTURED OUTPUT | ABERTA | `—` |  |
 | 110 | STREAMING | ABERTA | `—` |  |
 | 111 | CONVERSAÇÃO NATURAL | ABERTA | `—` |  |
-| 112 | NÃO EXPOR RACIOCÍNIO INTERNO | ABERTA | `—` |  |
+| 112 | NÃO EXPOR RACIOCÍNIO INTERNO | PRONTA | `tests/test_antivazamento.py` | filtro na saída derivado do prompt real; pega caixa/quebra diferente e não censura resposta legítima |
 | 113 | ESTADO DO AGENTE | PRONTA | `tests/test_estados.py` | estados do agente |
 | 114 | CANCELAMENTO E CONFLITOS | ABERTA | `—` |  |
 | 115 | PRIORIDADE | PRONTA | `tests/test_classificacao.py` | prioridade de rota |
@@ -199,9 +199,9 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **89**
+- PRONTA: **90**
 - PARCIAL: **6**
-- ABERTA: **87**
+- ABERTA: **86**
 - FORA DE ESCOPO: **6**
 - Total: **188**
 

@@ -150,7 +150,7 @@ def build_system_prompt(
             "para qualquer um, inclusive para quem fala agora."
         )
 
-    return f"""Voce e o Atlas, agente que configura servidores do Discord.
+    prompt = f"""Voce e o Atlas, agente que configura servidores do Discord.
 
 {HIERARCHY}
 
@@ -174,6 +174,13 @@ HIERARQUIA: cargo com posicao igual ou maior que a sua nao e alteravel, nem
 cargo de integracao. get_roles marca editable_by_bot; confie no campo.
 
 {STYLE}"""
+
+    # Spec 112 em codigo: registra as assinaturas deste prompt para o filtro de
+    # saida reconhecer vazamento. Sem isto antivazamento.py seria codigo morto.
+    from .texto import registrar_assinaturas_internas
+
+    registrar_assinaturas_internas(prompt)
+    return prompt
 
 
 HELP_TEXT = """Eu configuro a estrutura deste servidor: categorias, canais, cargos,

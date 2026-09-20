@@ -197,10 +197,36 @@ def desarmar_mencoes(txt: str) -> str:
     return txt
 
 
+#: Assinaturas do prompt de sistema em vigor. Preenchido por
+#: `registrar_assinaturas_internas`, que o bot chama ao montar o prompt.
+_ASSINATURAS_INTERNAS: list[str] = []
+
+
+def registrar_assinaturas_internas(prompt: str) -> int:
+    """Guarda as assinaturas do prompt atual para `limpar` filtrar vazamento.
+
+    Spec 112 em código: `policy.py` barra o pedido de injection na entrada, mas
+    nada impedia o modelo de devolver o prompt na resposta. Pedir para o modelo
+    "não revelar as regras" dentro do próprio prompt é pedir para a fechadura
+    ficar do lado de fora.
+    """
+    from .antivazamento import assinaturas_internas
+
+    global _ASSINATURAS_INTERNAS
+    _ASSINATURAS_INTERNAS = assinaturas_internas(prompt)
+    return len(_ASSINATURAS_INTERNAS)
+
+
 def limpar(texto: str, *, limite: int = MAX_DESCRICAO) -> str:
     """Passa o texto por tudo: marcador vazado, caracteres, markdown pesado, tamanho."""
     if not texto:
         return texto
+    # Vazamento primeiro: remover caractere exótico antes poderia separar as
+    # palavras da assinatura e o filtro deixaria passar.
+    if _ASSINATURAS_INTERNAS:
+        from .antivazamento import filtrar
+
+        texto, _removidos = filtrar(texto, _ASSINATURAS_INTERNAS)
     txt = tirar_marcadores(texto)
     txt = _troca_char(txt)
     txt = _tabela_vira_linhas(txt)
