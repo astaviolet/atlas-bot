@@ -892,3 +892,86 @@ def test_nome_das_ferramentas_e_preservado_na_conversao():
     registry = build_registry()
     convertidos = {t["function"]["name"] for t in to_openai_tools(registry.declarations())}
     assert convertidos == set(registry.names)
+
+
+# ------------------------------------------------- retry/failover por status
+def test_503_e_transitorio_e_vai_para_o_proximo_modelo(monkeypatch):
+    """'Model temporarily busy' e 503 - o caso mais comum em endpoint gratuito."""
+    client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name="ocupado,livre")
+    client.backoff_seconds = 0.0
+    vistos = []
+
+    def create(**kwargs):
+        vistos.append(kwargs["model"])
+        if kwargs["model"] == "ocupado":
+            raise _sdk_exc("APIStatusError", 503)
+        return _fake_response(text="ok do segundo")
+
+    monkeypatch.setattr(client._client.chat.completions, "create", create)
+    turno = client.generate(system="s", history=[], tools=[])
+
+    assert turno.text == "ok do segundo"
+    assert client.last_model == "livre"
+
+
+@pytest.mark.parametrize("status", [408, 409, 425, 429, 500, 502, 503, 504])
+def test_status_transitorio_e_reconhecido(status):
+    from atlas.ai.openai_client import _is_retryable
+
+    assert _is_retryable(_sdk_exc("APIStatusError", status)) is True
+
+
+@pytest.mark.parametrize("status", [400, 401, 403, 404, 422])
+def test_status_permanente_nao_e_retentado(status):
+    """Chave ruim, modelo inexistente ou payload invalido nao se resolvem insistindo."""
+    from atlas.ai.openai_client import _is_retryable
+
+    exc = _sdk_exc("NotFoundError" if status == 404 else "APIStatusError", status)
+    assert _is_retryable(exc) is False
+
+
+def test_esgota_todos_os_modelos_antes_de_desistir(monkeypatch):
+    """Se nenhum modelo responde, o usuario recebe AIError - nao silencio."""
+    import openai
+    from atlas.errors import AIError
+
+    client = OpenAICompatibleClient(api_key="", base_url="https://gw/v1", model_name="a,b")
+    client.backoff_seconds = 0.0
+    client.max_attempts_per_model = 2
+    vistos = []
+
+    def create(**kwargs):
+        vistos.append(kwargs["model"])
+        raise _sdk_exc("APIStatusError", 503)
+
+    monkeypatch.setattr(client._client.chat.completions, "create", create)
+    with pytest.raises(AIError):
+        client.generate(system="s", history=[], tools=[])
+    assert vistos == ["a", "a", "b", "b"], "deve esgotar as tentativas de cada modelo"
+
+
+def test_prompt_orienta_a_nao_duplicar_o_que_ja_existe():
+    """Modelo pequeno duplica categoria se o prompt nao mandar olhar antes."""
+    from atlas.policy import ActionBudget, Policy
+    from atlas.prompts import build_system_prompt
+    from atlas.testing.fake_gateway import FakeGateway
+    from atlas.tools import build_registry
+
+    gw = FakeGateway()
+    gw.seed_gamer_layout()
+    snap = gw.snapshot()
+    policy = Policy(
+        guild_id=gw.guild_id,
+        budget=ActionBudget(max_actions=60, max_creates=40, max_deletes=25),
+    )
+    texto = build_system_prompt(snap, build_registry(), policy)
+
+    # Frases exatas: as palavras soltas tambem aparecem em outras partes do
+    # prompt (lista de ferramentas, por exemplo), entao so a frase completa
+    # garante que a orientacao esta mesmo ali.
+    assert "chame get_categories e get_channels" in texto, \
+        "o prompt precisa mandar listar categorias antes de criar"
+    assert "Nao crie o que ja existe." in texto, \
+        "o prompt precisa proibir duplicata explicitamente"
+    assert "so voce evita a duplicata" in texto, \
+        "o prompt precisa explicar que o Discord nao impede nome repetido"
