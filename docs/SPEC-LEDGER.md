@@ -19,7 +19,7 @@ Seções na spec: **188**
 | 8 | ISOLAMENTO POR GUILD | PRONTA | `tests/test_security.py` | bind_guild recusa outro servidor; chaves de guild removidas em massa |
 | 9 | MODELO MENTAL DO AGENTE | PROCESSO | `README.md` | entender → planejar → validar → executar → verificar → corrigir → responder |
 | 10 | INTENÇÃO DO USUÁRIO | PROCESSO | `README.md` | linguagem natural como entrada |
-| 11 | PLANNER | PARCIAL | `src/atlas/design.py` | proposta é gerada, mas plano != execução ainda depende do modelo seguir |
+| 11 | PLANNER | PRONTA | `tests/test_design.py` | plano_estruturado gera os 14 campos da spec em código (não no modelo) e vai junto na proposta; a execução é comparada com ele por conferir_contra_design |
 | 12 | DRY RUN | PRONTA | `46b867f` | dry run / simulação |
 | 13 | IDEMPOTÊNCIA | PRONTA | `tests/test_tools_basic.py` | categoria pedida duas vezes não duplica |
 | 14 | SISTEMA DE TOOLS | PRONTA | `tests/test_policy.py` | registry tem exatamente as ferramentas permitidas |
@@ -199,8 +199,8 @@ Seções na spec: **188**
 
 ## Resumo
 
-- PRONTA: **139**
-- PARCIAL: **4**
+- PRONTA: **140**
+- PARCIAL: **3**
 - ABERTA: **0**
 - FORA DE ESCOPO: **14**
 - PROCESSO: **31**

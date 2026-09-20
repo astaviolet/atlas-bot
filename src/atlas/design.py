@@ -30,7 +30,10 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:  # so para anotacao; em runtime as importacoes sao lazy
+    from .design_system import Arquitetura, Briefing
 
 #: Palavras que indicam "projetar uma estrutura", nao "fazer uma operacao".
 #: Mantido curto de proposito: falso positivo custa ~800 tokens em todo pedido.
@@ -185,6 +188,13 @@ def proposta_de_design(texto: str, n_membros: int | None = None) -> str:
         f"Porte considerado: {briefing.porte.value} | estilo: {briefing.estilo.value} "
         f"| dominio: {briefing.dominio.value} | nota interna: {nota['geral']}/10"
     )
+
+    # Spec 11: o plano estruturado vai junto. Gerado em codigo de proposito -
+    # se viesse do modelo, "plano != execucao" dependeria de o modelo seguir o
+    # proprio plano, e o F5 mediu que ele nao segue.
+    linhas.append("")
+    linhas.append("PLANO (nao execute ainda, isto e plano):")
+    linhas.append(plano_estruturado(briefing, arq))
     return "\n".join(linhas)
 
 
@@ -292,3 +302,116 @@ def proposta_de_reforma(texto: str, snapshot: Any, n_membros: int | None = None)
         linhas.append("PERGUNTE AO USUÁRIO ANTES DE EXECUTAR:")
         linhas.append(perguntas)
     return "\n".join(linhas)
+
+
+#: Ordem e nomes dos campos que a spec 11 exige num plano estruturado.
+#: É lista e não dicionário porque a ORDEM faz parte do contrato: o plano é lido
+#: por humano antes de confirmar, e objetivo antes de risco não é decorativo.
+CAMPOS_DO_PLANO: tuple[str, ...] = (
+    "OBJETIVO", "CONTEXTO", "TEMA", "PUBLICO", "CATEGORIAS", "CANAIS",
+    "CARGOS", "PERMISSOES", "ORDEM", "ONBOARDING", "RECURSOS ESPECIAIS",
+    "RISCOS", "ALTERACOES DESTRUTIVAS", "CONFIRMACAO NECESSARIA",
+)
+
+
+def plano_estruturado(
+    briefing: "Briefing",
+    arquitetura: "Arquitetura",
+    *,
+    destruicoes: int = 0,
+    snapshot: Any = None,
+) -> str:
+    """Plano estruturado da spec 11, gerado em código.
+
+    POR QUE EM CÓDIGO E NÃO NO PROMPT
+    ---------------------------------
+    Se o plano viesse do modelo, "plano ≠ execução" dependeria de o modelo
+    seguir o próprio plano — que é exatamente o que o F5 mediu que ele não faz
+    (4 categorias genéricas e duplicatas com a doutrina já no prompt). Gerando
+    aqui, o plano é dado e `conferir_contra_design` compara a execução com ele.
+
+    PLANO ≠ EXECUÇÃO
+    ----------------
+    Esta função não executa nada nem devolve ação. Devolve texto para o humano
+    ler e confirmar. A confirmação continua sendo do Executor — e `destruicoes`
+    só informa o campo, não dispara nada.
+    """
+    linhas: list[str] = []
+
+    def campo(nome: str, corpo: str) -> None:
+        linhas.append(f"{nome}: {corpo}")
+
+    campo("OBJETIVO", _objetivo(briefing))
+    campo("CONTEXTO", _contexto(briefing, snapshot))
+    campo("TEMA", briefing.tema.strip() or "sem tema declarado")
+    campo("PUBLICO", _humano(getattr(briefing.publico, "value", str(briefing.publico))))
+    campo("CATEGORIAS", f"{len(arquitetura.categorias)} - "
+          + ", ".join(c.nome for c in arquitetura.categorias))
+    campo("CANAIS", f"{sum(len(c.canais) for c in arquitetura.categorias)} no total")
+    campo("CARGOS", f"{len(arquitetura.cargos)} - "
+          + ", ".join(c.nome for c in arquitetura.cargos[:8]))
+
+    permissoes = [c.nome for c in arquitetura.cargos if c.permissoes]
+    campo("PERMISSOES",
+          ", ".join(permissoes) if permissoes else "padrao do servidor, nada alem")
+    campo("ORDEM", "categorias na ordem listada; canais por funcao dentro de cada uma")
+    # `onboarding` e lista: imprimir direto sairia "['ler as regras', ...]",
+    # que e repr de Python na cara do usuario.
+    passos = [str(x) for x in (arquitetura.onboarding or [])]
+    campo("ONBOARDING", " -> ".join(passos) if passos else "apresentacao e regras")
+    campo("RECURSOS ESPECIAIS", _recursos(briefing))
+    campo("RISCOS", _riscos(briefing, destruicoes))
+    campo("ALTERACOES DESTRUTIVAS",
+          f"{destruicoes} canal(is) marcado(s) para exclusao"
+          if destruicoes else "nenhuma - nada sera excluido")
+    campo("CONFIRMACAO NECESSARIA",
+          "sim - ha exclusao, e exclusao nao tem inversa"
+          if destruicoes else "nao para o plano; o Executor decide pela regra dele")
+    return "\n".join(linhas)
+
+
+def _humano(valor: str) -> str:
+    """'gaming_competitivo' -> 'gaming competitivo'. O `.value` do enum e
+    identificador de codigo; no plano vai texto legivel."""
+    return valor.replace("_", " ").strip()
+
+
+def _objetivo(briefing: "Briefing") -> str:
+    from .design_system import Porte
+
+    verbo = {
+        Porte.PEQUENO: "organizar",
+        Porte.MEDIO: "estruturar",
+        Porte.GRANDE: "estruturar em areas",
+    }.get(briefing.porte, "estruturar")
+    return (f"{verbo} o servidor para {_humano(briefing.dominio.value)} "
+            f"({_humano(briefing.porte.value)})")
+
+
+def _contexto(briefing: "Briefing", snapshot: Any) -> str:
+    if snapshot is None:
+        return (f"porte {_humano(briefing.porte.value)}, estilo {_humano(briefing.estilo.value)}")
+    n_canais = len(getattr(snapshot, "channels", []) or [])
+    n_cargos = len(getattr(snapshot, "roles", []) or [])
+    return (f"porte {_humano(briefing.porte.value)}, estilo {_humano(briefing.estilo.value)}; "
+            f"servidor tem hoje {n_canais} canais e {n_cargos} cargos")
+
+
+def _recursos(briefing: "Briefing") -> str:
+    from .design_system import canais_do_tema
+
+    extras = canais_do_tema(briefing.tema, briefing.porte)
+    if extras:
+        return "canais de tema: " + ", ".join(n for n, _, _ in extras)
+    return "nenhum alem da estrutura base"
+
+
+def _riscos(briefing: "Briefing", destruicoes: int) -> str:
+    from .design_system import Porte
+
+    riscos: list[str] = []
+    if briefing.porte == Porte.GRANDE:
+        riscos.append("muita area pode nascer vazia se o servidor nao tiver gente")
+    if destruicoes:
+        riscos.append("exclusao perde id, historico e cargo dos membros")
+    return "; ".join(riscos) if riscos else "nenhum relevante"

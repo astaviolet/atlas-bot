@@ -50,7 +50,7 @@ PROCESSO = "PROCESSO"
 #: Seção -> (status, evidência, observação).
 #: A evidência tem que existir de verdade: o script confere.
 _EVIDENCIAS: dict[int, tuple[str, str, str]] = {
-    11: (PARCIAL, "src/atlas/design.py", "proposta é gerada, mas plano != execução ainda depende do modelo seguir"),
+    11: (PRONTA, "tests/test_design.py", "plano_estruturado gera os 14 campos da spec em código (não no modelo) e vai junto na proposta; a execução é comparada com ele por conferir_contra_design"),
     12: (PRONTA, "46b867f", "dry run / simulação"),
     7: (PRONTA, "tests/test_security.py", "guild_id estranho é ignorado e não autoriza"),
     8: (PRONTA, "tests/test_security.py", "bind_guild recusa outro servidor; chaves de guild removidas em massa"),
