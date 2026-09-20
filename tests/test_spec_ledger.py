@@ -70,13 +70,26 @@ def test_evidencia_de_commit_inexistente_derruba(tmp_path, monkeypatch):
 
 
 def test_commit_real_passa(tmp_path, monkeypatch):
-    """O outro lado: commit que existe de verdade tem que ser aceito."""
+    """O outro lado: commit que existe de verdade tem que ser aceito.
+
+    Usa HEAD em vez de um sha fixo de proposito. Este teste tinha "46b867f"
+    escrito na mão: passa local, onde o histórico é completo, e QUEBROU no
+    GitHub Actions, cujo checkout é raso (depth 1) e não tem commit antigo. A
+    falha derrubou o job de testes e o job do bot foi pulado - ou seja, um sha
+    decorativo deixou o bot fora do ar. HEAD existe em qualquer clone.
+    """
+    import subprocess
+
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
     _apontar(tmp_path, monkeypatch)
-    monkeypatch.setattr(mod, "_EVIDENCIAS", {12: (mod.PRONTA, "46b867f", "dry run")})
+    monkeypatch.setattr(mod, "_EVIDENCIAS", {12: (mod.PRONTA, head, "dry run")})
     monkeypatch.setattr(mod, "_FORA", {})
     monkeypatch.setattr(mod.sys, "argv", ["spec_ledger.py"])
     assert mod.main() == 0
-    assert "| 12 | REQUISITO NUMERO 12 | PRONTA | `46b867f` | dry run |" in \
+    assert f"| 12 | REQUISITO NUMERO 12 | PRONTA | `{head}` | dry run |" in \
         (tmp_path / "SPEC-LEDGER.md").read_text(encoding="utf-8")
 
 

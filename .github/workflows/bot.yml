@@ -32,6 +32,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historico completo. O razao da spec verifica evidencia apontando
+          # para commit, e com o clone raso padrao (depth 1) NENHUM commit
+          # antigo existe - a verificacao passaria a mentir. Foi o que
+          # derrubou o job de testes e fez o job do bot ser pulado.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -54,6 +60,12 @@ jobs:
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Historico completo. O razao da spec verifica evidencia apontando
+          # para commit, e com o clone raso padrao (depth 1) NENHUM commit
+          # antigo existe - a verificacao passaria a mentir. Foi o que
+          # derrubou o job de testes e fez o job do bot ser pulado.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
