@@ -1,0 +1,11 @@
+URL REAL DO REMOTO (o .git/config NAO persiste entre turnos - ler daqui):
+  https://github.com/astaviolet/atlas-bot.git
+Grafia correta: "astaviolet" (nao "astvolta").
+
+Comando de push:
+  TOKEN=$(cat /home/user/.gh_token)
+  timeout 120 git -c credential.helper= push -q "https://x-access-token:${TOKEN}@github.com/astaviolet/atlas-bot.git" main
+  unset TOKEN
+
+NUNCA copiar a URL de memoria nem de nota: uma reticencia no meio da string
+vira "repository not found" e o push falha em silencio se o && estiver antes.
