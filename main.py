@@ -19,10 +19,35 @@ from atlas.config import ConfigError, load_settings
 from atlas.demo import run_demo
 
 
+def _ler_auditoria_do_disco(caminho) -> list[dict]:
+    """Le o JSONL do disco: cada run do Actions e um processo novo, entao a
+    memoria vem vazia e o historico real so existe no arquivo."""
+    import json
+    from pathlib import Path
+
+    caminho = Path(caminho)
+    if not caminho.exists():
+        return []
+    saida = []
+    for linha in caminho.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha:
+            continue
+        try:
+            saida.append(json.loads(linha))
+        except json.JSONDecodeError:
+            continue
+    return saida
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Atlas - agente de configuracao de servidores Discord")
     parser.add_argument("--check", action="store_true", help="valida configuracao e sai")
     parser.add_argument("--health", action="store_true", help="re-testa o pool de IA e imprime o painel")
+    parser.add_argument(
+        "--painel", action="store_true",
+        help="painel agregado: o que aconteceu, onde falhou, o que agora (sem gastar cota de IA)",
+    )
     parser.add_argument("--health-pausa", type=float, default=1.0, help="pausa entre sondas do --health")
     parser.add_argument(
         "--pool",
@@ -44,6 +69,15 @@ def main() -> int:
         return 2
 
     audit = setup_logging(audit_path=settings.audit_path)
+
+    if args.painel:
+        # Nao re-sonda o pool de proposito: --health queima cota e leva 138s.
+        # O painel tem que ser barato para poder rodar em toda run do Actions.
+        from atlas.observability import formatar_painel_geral, resumo_auditoria
+
+        registros = audit.records or _ler_auditoria_do_disco(settings.audit_path)
+        print(formatar_painel_geral(resumo_auditoria(registros)))
+        return 0
 
     if args.pool:
         from atlas.ai import build_catalog
