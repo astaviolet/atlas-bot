@@ -114,6 +114,12 @@ jobs:
           chmod +x scripts/run_bot.sh
           ./scripts/run_bot.sh
 
+      # Painel agregado da run (spec 122). `if: always()` porque o painel mais
+      # util e justamente o de quando o bot caiu.
+      - name: Painel
+        if: always()
+        run: python main.py --painel || true
+
       - name: Publicar logs
         if: always()
         uses: actions/upload-artifact@v4
